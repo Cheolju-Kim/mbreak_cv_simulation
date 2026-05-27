@@ -69,13 +69,13 @@ Because BU SCC jobs should stay within 24 hours, split the full `final` run by
 q ranges rather than submitting the entire grid as one job. For example:
 
 ```bash
-qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=303,BP_CV_Q_MIN=1,BP_CV_Q_MAX=20 scc/run_bp_cv_simulation.qsub.sh
-qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=304,BP_CV_Q_MIN=25,BP_CV_Q_MAX=40 scc/run_bp_cv_simulation.qsub.sh
-qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=305,BP_CV_Q_MIN=45,BP_CV_Q_MAX=60 scc/run_bp_cv_simulation.qsub.sh
-qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=306,BP_CV_Q_MIN=70,BP_CV_Q_MAX=70 scc/run_bp_cv_simulation.qsub.sh
-qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=307,BP_CV_Q_MIN=80,BP_CV_Q_MAX=80 scc/run_bp_cv_simulation.qsub.sh
-qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=308,BP_CV_Q_MIN=90,BP_CV_Q_MAX=90 scc/run_bp_cv_simulation.qsub.sh
-qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=309,BP_CV_Q_MIN=100,BP_CV_Q_MAX=100 scc/run_bp_cv_simulation.qsub.sh
+qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=303,BP_CV_FIT=false,BP_CV_Q_MIN=1,BP_CV_Q_MAX=20 scc/run_bp_cv_simulation.qsub.sh
+qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=304,BP_CV_FIT=false,BP_CV_Q_MIN=25,BP_CV_Q_MAX=40 scc/run_bp_cv_simulation.qsub.sh
+qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=305,BP_CV_FIT=false,BP_CV_Q_MIN=45,BP_CV_Q_MAX=60 scc/run_bp_cv_simulation.qsub.sh
+qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=306,BP_CV_FIT=false,BP_CV_Q_MIN=70,BP_CV_Q_MAX=70 scc/run_bp_cv_simulation.qsub.sh
+qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=307,BP_CV_FIT=false,BP_CV_Q_MIN=80,BP_CV_Q_MAX=80 scc/run_bp_cv_simulation.qsub.sh
+qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=308,BP_CV_FIT=false,BP_CV_Q_MIN=90,BP_CV_Q_MAX=90 scc/run_bp_cv_simulation.qsub.sh
+qsub -v BP_CV_MODE=final,BP_CV_REP=10000,BP_CV_NGRID=1000,BP_CV_SEED=309,BP_CV_FIT=false,BP_CV_Q_MIN=100,BP_CV_Q_MAX=100 scc/run_bp_cv_simulation.qsub.sh
 ```
 
 For a shorter pilot final run:
