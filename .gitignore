@@ -1,0 +1,7 @@
+cv_output/
+.codex_tmp/
+*.o*
+*.e*
+.Rhistory
+.RData
+.Rproj.user/

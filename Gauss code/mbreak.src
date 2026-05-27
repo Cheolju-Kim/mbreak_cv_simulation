@@ -1,0 +1,2409 @@
+
+/*Main procedure*/
+
+proc(0)=mainp(m,sumq,z,y,n,trm,bigT,brv,brbeta,vauto,hetq,prewhit);
+
+@ 
+***Input: m: number of breaks allowed
+          sumq: number of regression coefficients in each regime
+          z: regressors as a matrix, with the jth row containing 
+          observations at time j
+          y, dependent variable as a matrix, with the jth row containing 
+          observations at time j
+          n: the dimension of the dependent variable
+          trm: trimming 
+          bigT: sample size
+          brv: equal to 1 if covariance matrix is allowed to change
+          brbeta: equal to 1 if regression coefficients is allowed to change
+          vauto: equal to 1 if the error is allowed to be autocorrelated
+          hetq: equal to 1 if distribution of the regressors is allowed to change
+          prewhit: equal to 1 if use prewhittening
+
+***Global: _S, matrix of constants selecting variables appearing in each 
+          regression.
+            R: matrix of constant imposing restrictions across regimes
+@
+
+local i,lrtest,maty,matz,global,datevec,bigvec,h,beta,vv,bound,jk,rbeta,rvv,dx,bound2;
+local dxi,rbetai,rlrtest,cvs,clevel,wd,seq,cq,rftest;
+
+print "------------------------------------------------------------------------";
+print "The basic specifications for testing and estimation:";
+print "-------------------------------------------";
+print "(1) M=" m;
+print "(2) Trimming=" trm;
+print "(3) T=" bigt;
+if brv==1;
+print "(4) The ovariance matrix of errors is allowed to change";
+print "    Normality is assumed when testing changes in the covariance matrix";
+else;
+print "(4) The covariance matrix of errors is not allowed to change";
+endif;
+print "(5) The number of coefficients (beta) in each regime is: " sumq;
+print "-------------------------------------------";
+print "other specificiations:";
+print "-------------------------------------------";
+print "(1) the code reports results for an unrestricted model (apart";
+print "    from the  basic specifications and for a restricted model";
+print "    with restrictions specified by the user)";
+if vauto==1;
+print "(2) the error is allowed to be autocorrelated";
+else;
+print "(2) the error is serially uncorrelated";
+endif;
+if hetq==1;
+print "(3) the distribution of the regressors is allowed to change";
+else;
+print "(3) the distributions of the regressors is NOT allowed to change";
+endif;
+if prewhit==1;
+print "(4) Pre-whittening with VAR(1) when constructing confidence intervals";
+else;
+print "(4) No pre-whittening when constructing confidence intervals";
+endif;
+@print "***********************************************************************";@
+print "------------------------------------------------------------------------";
+print "Note: the critical values reported here assume q (the total number of 
+      parameters that are allowed to change) is not greater than 10.   
+      For q>10, critical values can be simulated by applying Theorem 5 
+      in Qu and Perron (2007)." ;
+h=round(trm*bigt); @trimming@
+@transform the data@
+{maty,matz}=transf(y,z);
+print " ";
+print "***********************************************************************";
+print "*     OUTPUT FROM THE UNRESTRICTED MODEL: TESTING AND ESTIMATION      *";
+print "***********************************************************************";
+@
+the following calls the procedure to estimate and print various
+tests for the number of breaks. It also returns the UDmax and WDmax
+tests. 
+@
+print "Output from the testing procedures:";
+print "------------------------------------------------------------------------";
+lrtest=zeros(m,1);
+cvs=zeros(m,4);
+clevel=10~5~2.5~1;   @significance level@
+
+/* The variance-covariance matrix of the errors is not allowed to change*/
+if brv==0 and brbeta==1; 
+    print "a) SupLR test for structural changes in the regression coefficients";
+    print "(Number of changing parameters" sumq ")";
+    print "-----------------";
+    dxi=zeros(m,m);
+
+if vauto==0;         @no serial correlation@
+    i=1;
+    do while i <= m;
+    {dxi[1:i,i],rbetai}=est(maty,matz,n,i,bigt,trm,eye(cols(matz)*(i+1)),1,0);
+    lrtest[i]=suplr(maty,matz,i,n,dxi[1:i,i],rbetai,bigt,1,0);
+    print "The SupLR test for 0 versus" i "break" lrtest[i,1];
+    i=i+1;
+    endo;
+    print "-----------------";
+    i=1;
+    do while i <= m;
+    cvs[i,.]=cvlr(i,sumq,trm);
+    i=i+1;
+    endo;
+    i=1;
+    do while i<=4;
+    print "The critical values at the" clevel[1,i] "% level are (for 1 to" m "breaks)";
+    print cvs[1:m,i]';
+    i=i+1;
+    endo;
+    @The WD test@
+    print "-------------------------------------------";
+    print "b) The WDmax test for up to" m "breaks";
+    @print "-------------------------------------------";@
+    WD=zeros(1,4);
+    i=1;
+    do while i<=m;
+    wd=(maxc(WD|(lrtest[i]*(cvs[1,.]./cvs[i,.]))))';
+    i=i+1;
+    endo;
+    cvs=cvwd(sumq,trm);
+    i=1;
+    do while i<=4;
+    print "-----------------";
+    print "The WDmax test at the" clevel[1,i] "%level is" Wd[i];
+    print "(The critical value is" cvs[i] ")";
+    i=i+1;
+    endo;
+    print "-------------------------------------------";
+    print "c) The output from the seq(l+1|l) test";
+    i=1;
+    do while i<=m-1;
+    seq=seqlr(maty,matz,n,dxi[1:i,i],i+1,bigt,h,brbeta,brv);
+    cvs=supseq(i,sumq,trm);
+    print "-----------------";
+    print "The Seq(" i+1 "|" i ") test is : " seq;
+    print "(The critical values are" cvs ")";
+    i=i+1;
+    endo;
+elseif vauto==1;  @Allowing serial correlation in the errors@
+    i=1;
+    do while i <= m;
+    {dxi[1:i,i],rbetai}=est(maty,matz,n,i,bigt,trm,eye(cols(matz)*(i+1)),1,0);
+    lrtest[i]=supft(maty,matz,i,n,dxi[1:i,i],rbetai,bigt,brbeta,brv,prewhit);
+    print "The Supf test for 0 versus" i "break" lrtest[i,1];
+    i=i+1;
+    endo;
+    print "-----------------";
+    i=1;
+    do while i <= m;
+    cvs[i,.]=cvlr(i,sumq,trm);
+    i=i+1;
+    endo;
+    i=1;
+    do while i<=4;
+    print "The critical values at the" clevel[1,i] "% level are (for 1 to" m "breaks)";
+    print cvs[1:m,i]';
+    i=i+1;
+    endo;
+    @The WD test@
+    print "-------------------------------------------";
+    print "b) The WDmax test for up to" m "breaks";
+    @print "-------------------------------------------";@
+    WD=zeros(1,4);
+    i=1;
+    do while i<=m;
+    wd=(maxc(WD|(lrtest[i]*(cvs[1,.]./cvs[i,.]))))';
+    i=i+1;
+    endo;
+    cvs=cvwd(sumq,trm);
+    i=1;
+    do while i<=4;
+    print "-----------------";
+    print "The WDmax test at the" clevel[1,i] "%level is" Wd[i];
+    print "(The critical value is" cvs[i] ")";
+    i=i+1;
+    endo;
+    print "-------------------------------------------";
+    print "c) The output from the seq(l+1|l) test";
+    i=1;
+    do while i<=m-1;
+    @the sequential test@
+    seq=seqf(maty,matz,n,dxi[1:i,i],i+1,bigt,h,brbeta,brv,prewhit);
+    cvs=supseq(i,sumq,trm);
+    print "-----------------";
+    print "The Seq(" i+1 "|" i ") test is : " seq;
+    print "(The critical values are" cvs ")";
+    i=i+1;
+    endo;
+endif; 
+    print "-------------------------------------------";
+    print "------------------------------------------------------------------------";
+    print "Output from the estimation procedures allowing" m "breaks";
+    {rbeta,rvv}=r_estim(maty,matz,bigt,n,m,dxi[.,m],eye(cols(matz)*(i+1)),brbeta,brv);
+    bound2=interval2(maty,matz,m,n,bigt,dxi[.,m],rbeta,rvv,hetq,vauto,brv,brbeta,prewhit);
+    print "--------------------------------------------";
+    print " The estimated breaks are:" dxi[.,m]';
+    print "--------------------------------------------";
+    print "Confidence intervals for the break dates are:";
+    i=1;
+    do while i <= m;
+    print "The 95% C.I. for the" i "th break is: " bound2[i,1] bound2[i,2];
+    print "The 90% C.I. for the" i "th break is: " bound2[i,3] bound2[i,4];
+    i=i+1;
+    endo;
+    print "--------------------------------------------";
+    print " The estimated coefficients are:" ;
+    jk=1;
+    do while jk<=m+1;
+    print " for the" jk "th regime: "  rbeta[(jk-1)*(rows(rbeta)/(m+1))+1:jk*(rows(rbeta)/(m+1))]';
+    jk=jk+1;
+    endo;
+    print "---------------------------------------------";
+    print "The estimated covariance matrices of the errors are";
+    jk=1;
+    do while jk<=m+1;
+    print " for the" jk "th regime: " rvv[(jk-1)*n+1:jk*n,.];
+    jk=jk+1;
+    endo;
+    print "---------------------------------------------";
+endif;
+
+if brv==1 and brbeta==0;
+    lrtest=zeros(m,1);
+    print "-------------------------------------------";
+    print "a) SupLR test for pure structural change in covariance matrix (sigma)";
+    print "Number of changing parameters" (n+1)*n/2;
+    print "-----------------";
+if vauto==1;
+    print "NOTE! The code does not allow to test for structural change in the";
+    print "covariance matrix with serially correlated errors.";
+    print "The critical values are no longer valid";
+    print "-----------------";
+endif;
+    i=1;
+    dxi=zeros(m,m);
+    do while i <= m;
+    @brbeta=0, brv=1@
+    {dxi[1:i,i],rbetai}=est(maty,matz,n,i,bigt,trm,ones((i+1),1).*.eye(cols(matz)),0,1);
+    lrtest[i]=suplr(maty,matz,i,n,dxi[1:i,i],rbetai,bigt,0,1);
+    print "The SupLR test for 0 versus" i "break" lrtest[i,1];
+    i=i+1;
+    endo;
+    print "-----------------";
+    i=1;
+    do while i <= m;
+    cvs[i,.]=cvlr(i,(n+1)*n/2,trm);
+    i=i+1;
+    endo;
+    i=1;
+    do while i<=4;
+    print "The critical values at the" clevel[1,i] "%level are (for 0 against 1 to " m " breaks)";
+    print cvs[1:m,i]';
+    i=i+1;
+    endo;
+    print "-------------------------------------------";
+    print "b) The WDmax test for up to" m "breaks";
+    @The WD test@
+    WD=zeros(1,4);
+    i=1;
+    do while i<=m;
+    wd=(maxc(WD|(lrtest[i]*(cvs[1,.]./cvs[i,.]))))';
+    i=i+1;
+    endo;
+    cvs=cvwd((n+1)*n/2,trm);
+    i=1;
+    do while i<=4;
+    print "-----------------";
+    print "The WDmax test at the" clevel[1,i] "%level is" Wd[i];
+    print "(The critical value is" cvs[i] ")";
+    i=i+1;
+    endo;
+    print "-------------------------------------------";
+    print "c) The output from the seq(l+1|l) test";
+    i=1;
+    do while i<=m-1;
+    seq=seqlr(maty,matz,n,dxi[1:i,i],i+1,bigt,h,brbeta,brv);
+    cvs=supseq(i,(n+1)*n/2,trm);
+    print "-----------------";
+    print "The Seq(" i+1 "|" i ") test is : " seq;
+    print "(The critical values are" cvs ")";
+    i=i+1;
+    endo;
+    print "-------------------------------------------";
+    print "-------------------------------------------------------------------------";
+    print "Output from the estimation procedures allowing" m "breaks";
+    {rbeta,rvv}=r_estim(maty,matz,bigt,n,m,dxi[.,m],ones((i+1),1).*.eye(cols(matz)),brbeta,brv);
+    bound2=interval2(maty,matz,m,n,bigt,dxi[.,m],rbeta,rvv,hetq,vauto,brv,brbeta,prewhit);
+    print "--------------------------------------------";
+    print " The estimated breaks are:" dxi[.,m]';
+    print "--------------------------------------------";
+    print "Confidence intervals for the break dates are:";
+    i=1;
+    do while i <= m;
+    print "The 95% C.I. for the" i "th break is: " bound2[i,1] bound2[i,2];
+    print "The 90% C.I. for the" i "th break is: " bound2[i,3] bound2[i,4];
+    i=i+1;
+    endo;
+    print "--------------------------- -----------------";
+    print " The estimated coefficients are:" ;
+    jk=1;
+    do while jk<=m+1;
+    print " for the" jk "th regime: "  rbeta[(jk-1)*(rows(rbeta)/(m+1))+1:jk*(rows(rbeta)/(m+1))]';
+    jk=jk+1;
+    endo;
+    print "---------------------------------------------";
+    print "The estimated covariance matrices of the errors are";
+    jk=1;
+    do while jk<=m+1;
+    print " for the" jk "th regime: " rvv[(jk-1)*n+1:jk*n,.];
+    jk=jk+1;
+    endo;
+    print "---------------------------------------------";
+endif;
+
+if brv==1 and brbeta==1;
+    lrtest=zeros(m,1);
+    print "-------------------------------------------";
+    print "a) SupLR test for pure structural change in regression coefficietns";
+    print "(beta) and covariance matrix (sigma)";
+    print "Number changing parameters" sumq+(n+1)*n/2;
+    print "-----------------";
+if vauto==1;
+    print "NOTE: The code does not allow to test for structural change in the";
+    print "covariance matrix with serially correlated errors.";
+    print "The critical values are no longer valid";
+    print "-----------------";
+endif;
+    dxi=zeros(m,m);
+    i=1;
+    do while i <= m;
+    @brbeta=1, brv=1@
+    {dxi[1:i,i],rbetai}=est(maty,matz,n,i,bigt,trm,eye(cols(matz)*(i+1)),1,1);
+    lrtest[i]=suplr(maty,matz,i,n,dxi[1:i,i],rbetai,bigt,1,1);
+    print "The SupLR test for 0 versus" i "break" lrtest[i,1];
+    i=i+1;
+    endo;
+    print "-----------------";
+    i=1;
+    do while i <= m;
+    cvs[i,.]=cvlr(i,sumq+(n+1)*n/2,trm);
+    i=i+1;
+    endo;
+    i=1;
+    do while i<=4;
+    print "The critical values at the" clevel[1,i] "%level are (for 0 against 1 to " m " breaks)";
+    print cvs[1:m,i]';
+    i=i+1;
+    endo;
+    @The WD test@
+    print "---------------------------------------------";
+    print "b) The WDmax test for up to" m "breaks";
+    WD=zeros(1,4);
+    i=1;
+    do while i<=m;
+    wd=(maxc(WD|(lrtest[i]*(cvs[1,.]./cvs[i,.]))))';
+    i=i+1;
+    endo;
+    cvs=cvwd(sumq+(n+1)*n/2,trm);
+    i=1;
+    do while i<=4;
+    print "-----------------";
+    print "The WDmax test at the" clevel[1,i] "%level is" Wd[i];
+    print "(The critical value is" cvs[i] ")";
+    i=i+1;
+    endo;
+    print "---------------------------------------------";
+    print "c) The output from the seq(l+1|l) test";
+    i=1;
+    do while i<=m-1;
+    seq=seqlr(maty,matz,n,dxi[1:i,i],i+1,bigt,h,brbeta,brv);
+    cvs=supseq(i,sumq+(n+1)*n/2,trm);
+    print "-----------------";
+    print "The Seq(" i+1 "|" i ") test is : " seq;
+    print "(The critical values are" cvs ")";
+    i=i+1;
+    endo;
+    print "-------------------------------------------";
+    print "-------------------------------------------------------------------------";
+    print "Output from the estimation procedures allowing" m "breaks";
+    {rbeta,rvv}=r_estim(maty,matz,bigt,n,m,dxi[.,m],eye(cols(matz)*(i+1)),brbeta,brv);
+    bound2=interval2(maty,matz,m,n,bigt,dxi[.,m],rbeta,rvv,hetq,vauto,brv,brbeta,prewhit);
+    print "--------------------------------------------";
+    print " The estimated breaks are:" dxi[.,m]';
+    print "--------------------------------------------";
+    print "Confidence intervals for the break dates are:";
+    i=1;
+    do while i <= m;
+    print "The 95% C.I. for the" i "th break is: " bound2[i,1] bound2[i,2];
+    print "The 90% C.I. for the" i "th break is: " bound2[i,3] bound2[i,4];
+    i=i+1;
+    endo;
+    print "--------------------------- -----------------";
+    print " The estimated coefficients are:" ;
+    jk=1;
+    do while jk<=m+1;
+    print " for the" jk "th regime: "  rbeta[(jk-1)*(rows(rbeta)/(m+1))+1:jk*(rows(rbeta)/(m+1))]';
+    jk=jk+1;
+    endo;
+    print "---------------------------------------------";
+    print "The estimated covariance matrices of the errors are";
+    jk=1;
+    do while jk<=m+1;
+    print " for the" jk "th regime: " rvv[(jk-1)*n+1:jk*n,.];
+    jk=jk+1;
+    endo;
+    print "---------------------------------------------";
+endif;
+
+print " ";
+print "***********************************************************************";
+print "*     OUTPUT FROM THE RESTRICTED MODEL: TESTING AND ESTIMATION      *";
+print "***********************************************************************";
+print "Output from the testing procedures:";
+print "------------------------------------------------------------------------";
+{dx,rbeta}=est(maty,matz,n,m,bigt,trm,R,brbeta,brv);
+{rbeta,rvv}=r_estim(maty,matz,bigt,n,m,dx,R,brbeta,brv);
+if brv==1 and brbeta==0;
+if vauto==0;
+    rlrtest=suplr(maty,matz,m,n,dx,rbeta,bigt,brbeta,brv);
+    print "The total number coefficients allowed to change:" n*(n+1)/2;
+    print "The value of the SUPF test:" rlrtest;
+    print "-----------------";
+    print "The critical values are:";
+    print cvlr(i,n*(n+1)/2,trm);
+elseif vauto==1;
+    print "NOTE: The code does not allow to test for structural change in the";
+    print "covariance matrix of the errors with serially correlated innovations.";
+    print "No result is reported";
+    print "-----------------";
+endif;
+endif;
+if brv==0 and brbeta==1;
+    cq=(n+1)*n/2*(brv==1)+rows(R)/(m+1)-(rows(R)-cols(r))/(m);
+    print "The total number coefficients allowed to change:" cq;
+if vauto==0;
+    @no autocorrelation, the SUPLR test is used@
+    rlrtest=suplr(maty,matz,m,n,dx,rbeta,bigt,brbeta,brv);
+    print "The value of the SUPLR test:" rlrtest;
+    print "-----------------";
+elseif vauto==1;
+    @use supf test with restrictions@
+    rftest=suprft(maty,matz,m,n,dx,rbeta,R,bigt,brbeta,brv,prewhit);
+    print "The value of the SUPF test:" rftest;
+    print "-----------------";
+endif;
+    print "The critical values are:";
+    print cvlr(i,cq,trm);
+endif;
+if brv==1 and brbeta==1;
+if vauto==0;
+    cq=(n+1)*n/2*(brv==1)+rows(R)/(m+1)-(rows(R)-cols(r))/(m);
+    print "The total number coefficients allowed to change:" cq;
+    @no autocorrelation, the SUPLR test is used@
+    rlrtest=suplr(maty,matz,m,n,dx,rbeta,bigt,brbeta,brv);
+    print "The value of the SUPLR test:" rlrtest;
+    print "-----------------";
+    print "The critical values are:";
+    print cvlr(i,cq,trm);
+elseif vauto==1;
+    print "NOTE: The code does not allow to test for structural change in the";
+    print "covariance matrix of the errors with serially correlated innovations.";
+    print "Instead the test for change in regression coefficients is reported";
+    print "-----------------";
+    cq=rows(R)/(m+1)-(rows(R)-cols(r))/(m);
+    print "the total number of regression coefficients allowed to change:" cq;
+    @use supf test with restrictions@
+    rftest=suprft(maty,matz,m,n,dx,rbeta,R,bigt,brbeta,brv,prewhit);
+    print "The value of the SUPF test:" rftest;
+    print "-----------------";
+    print "The critical values are:";
+    print cvlr(i,cq,trm);
+endif;
+endif;
+print "------------------------------------------------------------------------";
+print "Output from the estimation procedures allowing" m "breaks";
+print "             (The restricted model)             ";
+print "--------------------------------------------";
+print " The estimated breaks are:" dx';
+print "--------------------------------------------";
+bound2=interval2(maty,matz,m,n,bigt,dx,rbeta,rvv,hetq,vauto,brv,brbeta,prewhit);
+print "Confidence intervals for the break dates are:";
+i=1;
+do while i <= m;
+print "The 95% C.I. for the" i "th break is: " bound2[i,1] bound2[i,2];
+print "The 90% C.I. for the" i "th break is: " bound2[i,3] bound2[i,4];
+i=i+1;
+endo;
+print "--------------------------- -----------------";
+print " The estimated coefficients are:" ;
+jk=1;
+do while jk<=m+1;
+print " for the" jk "th regime: "  rbeta[(jk-1)*(rows(rbeta)/(m+1))+1:jk*(rows(rbeta)/(m+1))]';
+jk=jk+1;
+endo;
+print "---------------------------------------------";
+print "The estimated covariance matrices of the errors are";
+jk=1;
+do while jk<=m+1;
+print " for the" jk "th regime: " rvv[(jk-1)*n+1:jk*n,.];
+jk=jk+1;
+endo;
+print "---------------------------------------------";
+print "***********************************************************************";
+print "*                              THE END!                                *";
+print "***********************************************************************";
+endp;
+
+
+@*************************************************************************@
+proc(2)=transf(y,z);
+
+@ 
+***Procedure that generates the matrix of regressors (matz) and that of 
+   the dependent variable (maty)
+***Input: y, dependent variable as a matrix, with the jth row containing 
+          observations at time j
+          z: regressors as a matrix, with the jth row containing 
+          observations at time j
+***Output: maty, dependent variable as a row vector, with the (i-1)*n+jth 
+           row containing ith observation for equation j
+           matz: regressors as a matrix
+***Global: _S, matrix of constants selecting variables appearing in each 
+          regression.
+@
+
+local maty,matz,i,_ID;
+_ID=eye(cols(y));
+maty=y[1,.]';
+matz=_ID.*.z[1,.]*_S;
+i=2;
+do while i<=rows(y);
+maty=maty|y[i,.]';
+matz=matz|_ID.*.z[i,.]*_S;
+i=i+1;
+endo;
+retp(maty,matz);
+endp;
+
+
+@*************************************************************************@
+
+proc(2)=parti(start,b1,b2,last,bigvec,bigt);
+local k,dvec,j,ssrmin,dx,ini,jj;
+
+@
+procedure to obtain an optimal one break partitions for a segment that
+starts at date start and ends at date last. It return the optimal break
+and the associated minus likelhood value (MML).
+
+start: begining of the segment considered
+b1: first possible break date
+b2: last possible break date
+last: end of segment considered
+@
+dvec=zeros(bigt,1); 
+@ for a given ending date, the index is the inserting break point , 
+the cell contains the minus maximized likelhood function (MML)@
+
+ini=(start-1)*bigt-(start-2)*(start-1)/2+1;
+@ the starting date of the data@
+
+j=b1;
+do while j<=b2;
+jj=j-start;
+k=j*bigt-(j-1)*j/2+last-j;
+dvec[j,1]=bigvec[ini+jj,1]+bigvec[k,1];
+@ the first term: the MML corresponding to data from date start to j
+The second term: the ML corresponding to data from (j+1) and lasts 
+for last -j
+@
+j=j+1;
+endo;
+ssrmin=minc(dvec[b1:b2,1]);
+dx=(b1-1)+minindc(dvec[b1:b2,1]);
+retp(ssrmin,dx);
+endp;
+
+
+@*************************************************************************@
+
+/* Find the optimal partition allowing m breaks, unrestricted model*/
+proc(3)=dating_MLE(maty,matz,n,h,m,bigt);
+
+@ Input: 
+maty: vector dependent variables, with the (i-1)*n+j th element 
+      corresponding to the ith obseration from the jth equation
+      included in the regression
+matz: matrix of independent variables, arranged in the same manner
+      as maty. The number of columns corresponds to the number of
+      basic parameters included in the regression
+h:    mimunum number of observations in each segment
+m:    number of breaks.
+bigt: number of obervations in the sample
+Output: 
+global:  The maximized likelhood function under optimal partitons.
+datevec: the estimated break dates.
+bigvec:the big vector containing the MML for all possible segments
+@ 
+local datevec,optdat,optmle,dvec,i,mlemax,datx,j1,ib,jlast;
+local global,vecmle,jb,xx,bigvec,zi, yi, k, temp,b,beta;
+
+datevec=zeros(m,m); 
+@up-tiangular matrix contains the estimated break dates for break 
+numbers from one to m
+@
+optdat=zeros(bigt,m); 
+@row index corresponds to the ending dates, column index corresponds 
+to the number of breaks permitted before the ending date the cell 
+contains the optimal final break date
+@
+optmle=zeros(bigt,m);      
+@same as above, the cell contains the MML corresponding to that break
+sturcture
+@
+dvec=zeros(bigt,1);                        
+@the index is the date after which we inserting the break point.The 
+cell contains the corresponding MML
+@ 
+global=zeros(m,1);                            
+@Global MML when i breaks are permitted
+@
+bigvec=zeros(bigt*(bigt+1)/2,1);        
+@the vector that contains the MML corresponding to all the possible segments. 
+The MML corresponding to the segment starting at J and lasting for span 
+corresponds to the index T(j-1)-(j-1)(j-2)/2+span
+@
+
+i=1;
+do while i <= bigt-h+1;
+    {vecmle}=mlef(i,maty,matz,h,n,bigt);
+    bigvec[(i-1)*bigt+i-(i-1)*i/2:i*bigt-(i-1)*i/2,1]=vecmle[i:bigt,1];
+    i=i+1;
+endo;
+
+@
+Section that applies the dynamic programming algorithm to look for the
+optimal breaks
+The first case is when m = 1. Here the dynamic programming algorithm is not
+needed and one call to the parti(.) procedure is enough.
+@
+
+if m == 1;
+    {mlemax,datx}=parti(1,h,bigt-h,bigt,bigvec,bigt);
+    datevec[1,1]=datx;
+    global[1,1]=mlemax; 
+else;
+
+    @ when m > 1, a dynamic programming algorithm is used.
+    The first step is to obtain the optimal one break partitions for all
+    possible ending dates from 2h to T-mh+1.
+    The optimal dates are stored in a vector optdat.
+    The associated MML are stored in a vector optssr.
+    @
+    j1=2*h;                                                                              
+    @First loop. Looking for the optimal one break partitions for break 
+    dates between h and T-h. j1 is the last date of the segments.
+    @
+    do while j1 <= bigt; 
+    {mlemax,datx}=parti(1,h,j1-h,j1,bigvec,bigt);           
+    optmle[j1,1]=mlemax;         @ again no typo@                                                     
+    optdat[j1,1]=datx;                                                           
+    j1=j1+1;
+    endo;
+    global[1,1]=optmle[bigt,1];   @ no typo@
+    datevec[1,1]=optdat[bigt,1];
+
+    @
+    When this is done the algorithm looks for optimal 2,3,... breaks
+    partitions. The index used is ib.
+    @
+
+    ib=2;
+    do while ib <= m;
+        if ib == m;                 
+            @if we have reached the highest number of breaks considered, only 
+            one segment is considered, that which ends at the last date of 
+            the sample.
+            @
+            jlast=bigt;
+            jb=ib*h;          @date of the break@
+            do while jb <=jlast-h;
+                dvec[jb,1] = optmle[jb,ib-1]+bigvec[(jb+1)*bigt-jb*(jb+1)/2,1];
+                jb=jb+1;
+            endo;
+            optmle[jlast,ib]=minc(dvec[ib*h:jlast-h,1]);
+            optdat[jlast,ib]=(ib*h-1)+minindc(dvec[ib*h:jlast-h,1]);
+
+        else;
+            @if we have not reached the highest number of breaks considered, 
+            we need to loop over the last date of the segment, between (ib+1)*h and T.
+            @
+            jlast=(ib+1)*h;
+            do while jlast <= bigt;
+                jb=ib*h;             @date of the break@
+                do while jb <=jlast-h;
+                    dvec[jb,1] = optmle[jb,ib-1]+bigvec[jb*bigt-jb*(jb-1)/2+jlast-jb,1];
+                    jb=jb+1;
+                endo;
+                optmle[jlast,ib]=minc(dvec[ib*h:jlast-h,1]);
+                optdat[jlast,ib]=(ib*h-1)+minindc(dvec[ib*h:jlast-h,1]);
+                jlast=jlast+1;
+            endo;
+        endif;
+
+        @At each time we loop the results with ib breaks are retrieved
+        and printed@
+
+        datevec[ib,ib]=optdat[bigt,ib];
+        i=1;
+        do while i <= ib-1;
+            xx=ib-i;
+            datevec[xx,ib]=optdat[datevec[xx+1,ib],xx];
+            i=i+1;
+        endo;
+        global[ib,1]=optmle[bigt,ib];
+        ib=ib+1;
+    endo;
+
+endif;         @closing the if for the case m >1@
+
+retp(-global,datevec,bigvec);
+endp;
+
+
+@************************************************************************@
+
+/*Computing MLE based on a recursive formula*/
+proc(1)=mlef(start,maty,matz,h,n,last);
+local vecmle,v,r,i,j,b,f,g,retcode,t,x1, y1,icstar,gstar,ihstar,bigvar,bstar,
+k,tempy,tempz,ystar,zstar,vstar,itr,vvar,bbstar,res,umat,ibigv,segx,segy;
+
+@ 
+***Function: This procedure computes MLE from a data set that
+             starts at date "start" and ends at date "last". 
+***return:   It returns a vector of MLE of length last-start+1
+             (stored for convenience in a vector of length T).
+***method:   iterated FGLS is used to obtain the estimates, the recursive formula
+             in Tobing and McGilchrist (1992) is applied to reduce
+             the computational cost.
+
+***Inputs:
+            start: starting entry of the sample used.
+            last: ending date of the last segment considered
+            maty: vector of dependent variables, with the n*(j-1)+i th element 
+                  corresponding to the jth observation from ith equation. 
+            matz: matrix of all regressors included in the regression, arranged 
+                  in the same way as maty
+            h:    minimal length of a segment
+            n:    number of equations included in the system.
+
+***Note: that the first h-1 elements have no meaning, usually is 
+         initialized as zero
+***Note: the maximum number of iterations allowed is 1000
+@
+
+vecmle=zeros(last,1);
+@ initialize the beta and sigma using the first h observations, 
+iterated until convergence
+@
+i=start;
+j=start+h-1;
+segx=matz[(i-1)*n+1:j*n,.];
+segy=maty[(i-1)*n+1:j*n,.];
+b=invpd(segx'segx)*segx'segy;
+res=segy-segx*b;
+umat=reshape(res,rows(res)/n,n); 
+vvar=umat'umat/h;
+vstar=vvar+1;
+itr=1;
+do while maxc(abs(vecr(vvar-vstar)))>1e-6 and itr<1000;
+	vstar=vvar; 
+    ibigv=eye(rows(segy)/n).*.invpd(vstar); 
+	b=invpd(segx'ibigv*segx)*segx'ibigv*segy; 
+    res=segy-segx*b;
+    umat=reshape(res,rows(res)/n,n); 
+    vvar=umat'umat/h;
+	itr=itr+1;
+	if itr==1000;
+	print " warning: The number of iterations has reached the limit, FGLS does not converge";
+    print " consider to increase the minimum length of a segment";
+	endif;
+endo;
+bstar=b;
+ibigv=eye(h).*.invpd(vvar);
+ihstar=invpd(segx'*ibigv*segx);
+bstar=b;
+ystar=segy;
+zstar=segx;
+vstar=vvar;
+
+@ start recursion@
+
+do while j<=last;
+	gstar=ihstar*matz[(j-1)*n+1:j*n,.]';
+	icstar=invpd(vstar+matz[(j-1)*n+1:j*n,.]*ihstar*matz[(j-1)*n+1:j*n,.]'); 
+	b=bstar+gstar*icstar*(maty[(j-1)*n+1:j*n,.]-matz[(j-1)*n+1:j*n,.]*bstar);
+	tempz=zstar|matz[(j-1)*n+1:j*n,.];
+	tempy=ystar|maty[(j-1)*n+1:j*n,.];
+    res=tempy-tempz*b;
+    umat=reshape(res,rows(res)/n,n); 
+    vvar=umat'umat/(j-i+1);
+	itr=1;
+    vstar=vvar+10;
+    do while maxc(abs(vecr(vvar-vstar)))>1e-6 and itr<1000;
+	    vstar=vvar;
+        @ note that gstar does not need to be updated@
+	    icstar=invpd(vstar+matz[(j-1)*n+1:j*n,.]*ihstar*matz[(j-1)*n+1:j*n,.]');
+	    b=bstar+gstar*icstar*(maty[(j-1)*n+1:j*n,.]-matz[(j-1)*n+1:j*n,.]*bstar);
+        res=tempy-tempz*b;
+        umat=reshape(res,rows(res)/n,n); 
+        vvar=umat'umat/(j-i+1);
+	    itr=itr+1;
+	    if itr==1000;
+	    print " warning: The number of iterations has reached the limit, FGLS does not converge";
+        print " consider to increase the minimum length of a segment";
+	    endif;
+    endo;
+    vecmle[j,1]= ((j-i+1)*n/2)*(ln(2*pi)+1)+(j-i+1)/2*ln(det(vvar)); 
+    @ note that minus the likelihood function is recorded@
+    bstar=b;
+    zstar=tempz;
+    ystar=tempy;
+    vstar=vvar;
+    ihstar=ihstar-gstar*icstar*gstar';
+    j=j+1;
+endo;
+retp(vecmle);
+endp;
+
+
+@***************************************************************************@
+
+/* Procedure that computes confidence intervals for the break dates based on 
+the "shrinking shifts asymptotic framework." */ 
+/*
+proc(1)= interval(maty,matx,m,n,br,beta,vv);
+local a,bound,i,j,A1,A2,Q1,Q2,Pi1,Pi2,vvar1,vvar2,cvf,Omi;
+local phi1s,phi2s,eta,omega1,hetq,Delt1,Delt2,Gam1,Gam2;
+
+@now constructing the quantities needed for the limit distribution@
+
+bound=zeros(m,4);
+br=br|(rows(maty)/n);
+j=1;
+do while j<=m;
+vvar1=vv[(j-1)*n+1:j*n,.];
+vvar2=vv[(j)*n+1:(j+1)*n,.];
+A1=sqrm(vvar1)*invpd(vvar2)*(vvar2-vvar1)*invpd(sqrm(vvar1));
+A2=sqrm(vvar2)*invpd(vvar1)*(vvar2-vvar1)*invpd(sqrm(vvar2));
+Q1=0;
+Q2=0;
+Pi1=0;
+Pi2=0;
+
+if j==1;
+i=1;
+else;
+i=br[j-1]+1;
+endif;
+do while i<=br[j];
+Q1=Q1+matx[(i-1)*n+1:i*n,.]'invpd(vvar2)*matx[(i-1)*n+1:i*n,.];
+Pi1=Pi1+matx[(i-1)*n+1:i*n,.]'invpd(vvar2)*vvar1*invpd(vvar2)*matx[(i-1)*n+1:i*n,.];
+i=i+1;
+endo;
+if j==1;
+Q1=Q1/br[j];
+Pi1=Pi1/br[j];
+else;
+Q1=Q1/(br[j]-br[j-1]);
+Pi1=Pi1/(br[j]-br[j-1]);
+endif;
+
+i=br[j]+1;
+do while i<=br[j+1];
+Q2=Q2+matx[(i-1)*n+1:i*n,.]'invpd(vvar1)*matx[(i-1)*n+1:i*n,.];
+Pi2=Pi2+matx[(i-1)*n+1:(i)*n,.]'invpd(vvar1)*vvar2*invpd(vvar1)*matx[(i-1)*n+1:(i)*n,.];
+i=i+1;
+endo;
+Q2=Q2/(br[j+1]-br[j]);
+Pi2=Pi2/(br[j+1]-br[j]);
+
+Delt1=(1/2)*sumc(diag(A1*A1))+(beta[j+1,.]-beta[j,.])*Q1*(beta[j+1,.]-beta[j,.])';
+Delt2=(1/2)*sumc(diag(A2*A2))+(beta[j+1,.]-beta[j,.])*Q2*(beta[j+1,.]-beta[j,.])';
+
+Gam1=sqrt((1/2)*vec(A1)'vec(A1)+(beta[j+1,.]-beta[j,.])*Pi1*(beta[j+1,.]-beta[j,.])');
+Gam2=sqrt((1/2)*vec(A2)'vec(A2)+(beta[j+1,.]-beta[j,.])*Pi2*(beta[j+1,.]-beta[j,.])');
+
+eta=Delt2/Delt1;
+phi1s=Gam1*Gam1/Delt1;
+phi2s= Gam2*Gam2/Delt2;
+
+cvf=cvg(eta,phi1s,phi2s);
+
+a=(Delt1/Gam1)^2;
+
+
+bound[j,1]=br[j,1]-cvf[4,1]/a;
+bound[j,2]=br[j,1]-cvf[1,1]/a;
+bound[j,3]=br[j,1]-cvf[3,1]/a;
+bound[j,4]=br[j,1]-cvf[2,1]/a;
+j=j+1;
+endo;
+
+bound[.,1]=int(bound[.,1]);
+bound[.,2]=int(bound[.,2])+1;
+bound[.,3]=int(bound[.,3]);
+bound[.,4]=int(bound[.,4])+1;
+
+retp(bound);
+endp;
+*/
+
+@*****************************************************************@
+/*obtain the quantiles of the limiting distribution*/
+proc(1)= funcg(x,bet,alph,b,deld,gam);
+local aa,xb,g;
+if x <= 0;
+    xb=bet*sqrt(abs(x));
+
+
+if abs(xb) <= 30 ;
+    g=-sqrt(-x/(2*pi))*exp(x/8)
+    -(bet/alph)*exp(-alph*x)*cdfn(-bet*sqrt(abs(x)))
+    +((2*bet*bet/alph)-2-x/2)*cdfn(-sqrt(abs(x))/2);
+else;
+    aa=ln(bet/alph)-alph*x-xb^2/2-ln(sqrt(2*pi))-ln(xb);
+    g=-sqrt(-x/(2*pi))*exp(x/8)-exp(aa)*cdfn(-sqrt(abs(x))/2)
+    +((2*bet*bet/alph)-2-x/2)*cdfn(-sqrt(abs(x))/2);
+endif;
+
+else;
+    xb=deld*sqrt(x);
+    @print xb bet b deld gam*x -deld*sqrt(x) x;@
+if abs(xb) <= 30;
+    g=1+(b/sqrt(2*pi))*sqrt(x)*exp(-b*b*x/8)
+    +(b*deld/gam)*exp(gam*x)*cdfn(-deld*sqrt(x))
+    +(2-b*b*x/2-2*deld*deld/gam)*cdfn(-b*sqrt(x)/2);
+else;
+    aa=ln((b*deld/gam))+gam*x-xb^2/2-ln(sqrt(2*pi))-ln(xb);
+    g=1+(b/sqrt(2*pi))*sqrt(x)*exp(-b*b*x/8)
+    +exp(aa)
+    +(2-b*b*x/2-2*deld*deld/gam)*cdfn(-b*sqrt(x)/2);
+
+endif;
+endif;
+retp(g);
+endp;
+
+@****************************************************************@
+
+
+proc(1)= cvg(eta,phi1s,phi2s);
+@ procedure to get the boundaries for the confidence interval@
+@ the default is 90% and 95% level@
+local a,gam,b,deld,alph,bet;
+local cct,isig,sig,upb,lwb,crit,xx,pval,cvec;
+
+cvec=zeros(4,1);
+a=phi1s/phi2s;
+gam=((phi2s/phi1s)+1)*eta/2; 
+b=sqrt(phi1s*eta/phi2s);
+deld=sqrt(phi2s*eta/phi1s)+b/2;
+alph=a*(1+a)/2;
+bet=(1+2*a)/2;
+sig={0.025 0.05 0.95 0.975};
+
+isig=1;
+do while isig <= 4;
+
+upb=maxc(200|(100/gam));
+lwb=-200.0;
+crit=999999.0;
+cct=1;
+
+do while abs(crit) >= .00001;
+cct=cct+1;
+if cct > 1000;
+print "the procedure to get critical values for the break dates has";
+print "reached the upper bound on the number of iterations. This may";
+print "be due to incorrect specifications of the upper or lower bound";
+print "in the procedure cvg. The resulting confidence interval for this";
+print "break date is incorrect.";
+retp(cvec);
+else;
+xx=lwb+(upb-lwb)/20;
+pval=funcg(xx,bet,alph,b,deld,gam);
+crit=pval-sig[isig];
+if crit <= 0;
+lwb=xx;
+else;
+upb=xx;
+endif;
+endif;
+endo;
+cvec[isig,1]=xx;
+isig=isig+1;
+endo;
+retp(cvec);
+endp;
+
+
+@*************************************************************@
+
+
+proc(1)=sqrm(M);
+@compute the square root matrix of a symmetric positive definte matrix@
+local sq,s,r,va,ve,dd;
+{ va,ve } = eigv(M);
+dd=diagrv(eye(rows(m)),va);
+sq=ve*sqrt(dd)*ve';
+retp(sq);
+endp;
+
+
+@************************************************************@
+
+
+proc(2)=estim(maty,matz,n,m,br);
+@procedure that estimates the coefficients under the 
+optimal partitions@
+local vv,beta,b,j,i,k,res,segx,segy,vvar,umat,itr,vstar,ibigv,rep;
+beta=zeros(m+1,cols(matz));
+vv=zeros((m+1)*n,n);
+br=0|br|(rows(maty)/n);
+k=1;
+do while k<=m+1;
+    i=br[k]+1;
+    j=br[k+1];
+    segx=matz[(i-1)*n+1:j*n,.];
+    segy=maty[(i-1)*n+1:j*n,.];
+    b=invpd(segx'segx)*segx'segy;
+    res=segy-segx*b;
+    umat=reshape(res,rows(res)/n,n); 
+    vvar=umat'umat/(j-i+1);
+    vstar=vvar+1;
+    itr=1;
+    do while maxc(abs(vecr(vvar-vstar)))>1e-6 and itr<200;
+	    vstar=vvar; 
+        ibigv=eye(rows(segy)/n).*.invpd(vstar); 
+	    b=invpd(segx'ibigv*segx)*segx'ibigv*segy; 
+        res=segy-segx*b;
+        umat=reshape(res,rows(res)/n,n); 
+        vvar=umat'umat/(j-i+1);
+	    itr=itr+1;
+	    if itr==200;
+	    print " warning: the FGLS fail, the result does not converge";
+	    endif;
+    endo;
+    beta[k,.]=b';
+    vv[(k-1)*n+1:k*n,.]=vvar;
+    k=k+1;
+endo;
+retp(beta,vv);
+endp;
+
+
+@***********************************************************************@
+
+proc(1)=suplr(maty,matx,m,n,br,rbeta,bigt,brbeta,brv);
+
+@Procedure that constructs the supf test against m breaks.
+The test is the LR test under the optimal partitions 
+computed by dating_MLE.
+Control variables: 
+if brv==1, against breaks in variance
+if brbeta==1, against breaks in coefficients
+if brv==1 and brbeta==1, allowing changes in both.
+@
+
+local i,j,k,rlr,ulr,beta,vv,seg,ibigv,tempx,tempy,res,umat,bbs,vvar,b,bstar,vstar;
+local itr,pmatx;
+pmatx=pzbar(matx,m,br,bigt);
+res=maty-pmatx*rbeta; 
+res=reshape(res,rows(res)/n,n);
+seg=0|br|(rows(maty)/n);
+if brv==1 and brbeta==1;
+        ulr=0;
+        k=1;
+        do while k<=m+1;
+            i=seg[k]+1;
+            j=seg[k+1];
+            vvar=res[i:j,.]'res[i:j,.]/(j-i+1);
+            ulr=ulr-((j-i+1)*n/2)*(ln(2*pi)+1)-(j-i+1)/2*ln(det(vvar));
+            k=k+1;
+        endo;
+endif;
+if brv==1 and brbeta/=1;
+        @now, change in the var only, iterative method is used for the
+         optimization, with the unrestricted estimate as the prior input.
+         Then the beta is updated and then var. The procedure is iterated
+         until convergence. Non-linear optimization algorithm could be used
+         in the place of the iterative procedure
+        @
+         ulr=0;
+        k=1;
+        do while k<=m+1;
+            i=seg[k]+1;
+            j=seg[k+1];
+            vvar=res[i:j,.]'res[i:j,.]/(j-i+1);
+            ulr=ulr-((j-i+1)*n/2)*(ln(2*pi)+1)-(j-i+1)/2*ln(det(vvar));
+            k=k+1;
+        endo;
+endif;
+ if brbeta==1 and  brv/=1;
+       ulr=0;
+       vvar=res[1:bigt,.]'res[1:bigt,.]/(bigt);
+       ulr=-(bigT*n/2)*(ln(2*pi)+1)-(bigT)/2*ln(det(vvar));
+endif;
+@now estimate the restricted model@
+    b=invpd(matx'matx)*matx'maty;
+    res=maty-matx*b;
+    umat=reshape(res,rows(res)/n,n); 
+    vvar=umat'umat/bigT;
+    vstar=vvar+1;
+    itr=1;
+    do while maxc(abs(vecr(vvar-vstar)))>1e-6 and itr<1000;
+	    vstar=vvar; 
+        ibigv=eye(rows(maty)/n).*.invpd(vstar); 
+	    b=invpd(matx'ibigv*matx)*matx'ibigv*maty; 
+        res=maty-matx*b;
+        umat=reshape(res,rows(res)/n,n); 
+        vvar=umat'umat/bigT;
+	    itr=itr+1;
+	    if itr==1000;
+	    print " warning: the FGLS fail, the result does not converge";
+	    endif;
+    endo;
+ rlr=-(bigT*n/2)*(ln(2*pi)+1)-(bigT)/2*ln(det(vvar)); 
+retp(2*(ulr-rlr));
+endp;  
+
+ @***********************************************************************@
+/*Procedrue that estimates the model allowing cross regime restrictions*/
+/*For the current version of the code, only linear restriction is allowed*/
+
+proc(2)=r_estim(maty,matz,bigt,n,m,br,R,brbeta,brv);
+@
+Input:
+        maty: dependent variable
+        matz: independent variable
+        n: number of equations
+        m: number of breaks
+        bigt: sample size
+        br: break dates
+        R: the restriction, taking the form beta=R*teta, where teta is the vector 
+        of basic parameters of the restricted model
+        brv: brv=1 if the variance-covariance matrix is allowed to change
+             brv=0 otherwise
+        brbeta: brbeta=1 if the coefficients are allowed to change
+                brbeta=0 otherwise
+  Output:
+        nbeta: the estimate of coefficients imposing restrictions
+  Note: the model includes partial structural change and block-partial structural
+        change models
+        The estimation of based on iterative feasible GLS
+@ 
+local i,j,k,rlr,ulr,beta,vv,seg,ibigv,tempx,tempy,res,umat,bbs,vvar,b,bstar,vstar;
+local itr,pmatz,nbeta,nvv;
+
+seg=0|br|(rows(maty)/n);
+@now estimate an unrestricted model@
+{beta,vv}=estim(maty,matz,n,m,br);
+if brv==1 and brbeta==1;
+        pmatz=pzbar(matz,m,br,bigt);
+        pmatz=pmatz*R;
+        k=1;
+        ibigv=eye(bigT*n);
+        do while k<=m+1;
+            i=seg[k]+1;
+            j=seg[k+1];
+            ibigv[(i-1)*n+1:j*n,(i-1)*n+1:j*n]=eye(j-i+1).*.invpd(vv[(k-1)*n+1:k*n,.]);
+            k=k+1;
+        endo;
+        b=invpd(pmatz'ibigv*pmatz)*pmatz'ibigv*maty;
+        bstar=b+10;
+        itr=1;
+        do while maxc(abs(bstar-b))>=1e-6 and itr<=1000;
+            bstar=b;
+            k=1;
+            @update the covariance matrix@
+            do while k<=m+1;
+                i=seg[k]+1;
+                j=seg[k+1];
+                tempx=pmatz[(i-1)*n+1:j*n,.];
+	            tempy=maty[(i-1)*n+1:j*n,.];
+                res=tempy-tempx*bstar;
+                umat=reshape(res,rows(res)/n,n); 
+                vvar=umat'umat/(j-i+1);
+                vv[(k-1)*n+1:k*n,.]=vvar;
+                k=k+1;
+            endo;
+            k=1;
+            @create the block diagonal matrix of the covariances@
+            do while k<=m+1;
+                i=seg[k]+1;
+                j=seg[k+1];
+                ibigv[(i-1)*n+1:j*n,(i-1)*n+1:j*n]=eye(j-i+1).*.invpd(vv[(k-1)*n+1:k*n,.]);
+                k=k+1;
+            endo;
+            b=invpd(pmatz'ibigv*pmatz)*pmatz'ibigv*maty;
+            itr=itr+1;
+            if itr==1000;
+            print " The iteration has reached the upper limit";
+            endif;
+         endo;
+    nbeta=R*b;
+    nvv=vv;
+endif;
+        
+if brv==1 and brbeta/=1;
+        @now, change in the covariance matrix only, iterative method is used for the
+         optimization, with the unrestricted estimate as the prior input.
+         The procedure is iterated until convergence. Non-linear optimization algorithm 
+         could be used in place of the iterative procedure
+        @
+         ibigv=eye(bigT*n);
+         k=1;
+         do while k<=m+1;
+            i=seg[k]+1;
+            j=seg[k+1];
+            ibigv[(i-1)*n+1:j*n,(i-1)*n+1:j*n]=eye(j-i+1).*.invpd(vv[(k-1)*n+1:k*n,.]);
+            k=k+1;
+         endo;
+         b=invpd(matz'ibigv*matz)*matz'ibigv*maty;
+         bstar=b+10;
+         itr=1;
+         do while maxc(abs(bstar-b))>=1e-6 and itr<=200;
+            bstar=b;
+            @update the variance-covariance matrix@
+            k=1;
+            do while k<=m+1;
+                i=seg[k]+1;
+                j=seg[k+1];
+                tempx=matz[(i-1)*n+1:j*n,.];
+	            tempy=maty[(i-1)*n+1:j*n,.];
+                res=tempy-tempx*bstar;
+                umat=reshape(res,rows(res)/n,n); 
+                vvar=umat'umat/(j-i+1);
+                vv[(k-1)*n+1:k*n,.]=vvar;
+                k=k+1;
+            endo;
+            k=1;
+            do while k<=m+1;
+                i=seg[k]+1;
+                j=seg[k+1];
+                ibigv[(i-1)*n+1:j*n,(i-1)*n+1:j*n]=eye(j-i+1).*.invpd(vv[(k-1)*n+1:k*n,.]);
+                k=k+1;
+            endo;
+            b=invpd(matz'ibigv*matz)*matz'ibigv*maty;
+            itr=itr+1;
+            if itr==1000;
+            print "The iteration has reached the upper limit";
+            endif;
+         endo;
+    nbeta=b;
+    nvv=vv;
+    k=2;
+    do while k<=m+1;
+        nbeta=nbeta|b;
+        k=k+1;
+    endo;
+ endif;
+
+@ the next allows changes in coefficients only@
+ if brbeta==1 and  brv/=1;
+        k=1;
+        vvar=0;
+        do while k<=m+1;
+            i=seg[k]+1;
+            j=seg[k+1];
+            tempx=matz[(i-1)*n+1:j*n,.];
+	        tempy=maty[(i-1)*n+1:j*n,.];
+            res=tempy-tempx*beta[k,.]';
+            umat=reshape(res,rows(res)/n,n); 
+            vvar=vvar+umat'umat;
+            k=k+1;
+        endo;
+            vvar=vvar/bigT;
+            ibigv=eye(Bigt).*.invpd(vvar);
+            pmatz=pzbar(matz,m,br,bigt);
+            pmatz=pmatz*R;
+            b=invpd(pmatz'ibigv*pmatz)*pmatz'ibigv*maty;
+            @now iterate till convergence@
+            bstar=b+10;
+        itr=1;
+        do while maxc(abs(vec(b-bstar)))>=1e-6 and itr<=1000;
+            bstar=b;
+            k=1;
+            res=maty-pmatz*bstar;
+            umat=reshape(res,rows(res)/n,n); 
+            vvar=umat'umat/bigt;
+            ibigv=eye(bigt).*.invpd(vvar);
+            b=invpd(pmatz'ibigv*pmatz)*pmatz'ibigv*maty;
+            itr=itr+1;
+            if itr==1000;
+            print " The iteration has reached the upper limit";
+            endif;
+       endo;
+    nbeta=R*B;
+    nvv=vvar;
+    k=2;
+    do while k<=m+1;
+        nvv=nvv|vvar;
+        k=k+1;
+    endo;
+endif;
+
+retp(nbeta,nvv);
+endp;
+
+@*****************************************************************************@
+/* procedure to construct the diagonal partition of matz with m break at dates b */
+proc pzbar(matz,m,bb,bigt);
+local nt,q1,matzb,i,n;
+nt=rows(matz);
+q1=cols(matz);
+n=nt/bigt;
+if m==0;
+print " m=0, no break is allowed, procedure terminates";
+retp(0);
+else;
+matzb=zeros(nt,(m+1)*q1);
+matzb[1:(bb[1,1]*n),1:q1]=matz[1:(bb[1,1]*n),.];
+i=2;
+do while i <= m;
+matzb[bb[i-1,1]*n+1:bb[i,1]*n,(i-1)*q1+1:i*q1]=matz[bb[i-1,1]*n+1:bb[i,1]*n,.];
+i=i+1;
+endo;
+matzb[bb[m,1]*n+1:nt,m*q1+1:(m+1)*q1]=matz[bb[m,1]*n+1:nt,.];
+retp(matzb);
+endif;
+endp;
+
+@************************************************************************@
+proc(1)=residuals(maty,matz,nbeta,q,n,m);
+local i, bigvec2,bigt ;
+@ input:
+    y: dependent variable.
+    z: regressors
+    b: estimated coefficients.
+    q: total number of regression coefficients in each regime.
+    n: number of equations
+    m: number of breaks
+ output:
+    bigvec2: residuals for all the possible segments
+@
+bigt=rows(maty)/n;
+bigvec2=zeros(bigt*(m+1),n);
+i=1;
+do while i<=m+1;
+          bigvec2[(i-1)*bigt+1:i*bigt,.]=reshape((maty-matz*nbeta[(i-1)*q+1:i*q]),bigt,n);    
+             i=i+1;
+        endo;
+retp(bigvec2);
+endp;
+
+@************************************************************************@
+/* the procedure is called only when number of breaks is one */
+@ 
+obtain an optimal one break partitions for a segment that starts at 
+    date start and ends at date last,under the given coefficients. 
+@
+
+proc(2)=parti2(start,b1,b2,last,bigvec2,bigt,n);
+local k,dvec,j,m1,m2,optmle,dx,ini,jj;
+@ Input: 
+        start: begining of the segment considered
+        b1: first possible break date
+        b2: last possible break date
+        last: end of segment considered
+Output: optmle: minus the value of the log-likelihood function
+        under the optimal partitons
+        dx: the break dates
+Note:   bigvec must be a matrix of size 2*bigt by n
+@        
+dvec=zeros(bigt,1);      
+j=b1;
+do while j<=b2;
+        m1=bigvec2[start:j,.]'bigvec2[start:j,.]/(j-start+1);
+        m2=bigvec2[1*bigt+j+1:1*bigt+last,.]'bigvec2[1*bigt+j+1:1*bigt+last,.]/(last-j+1);
+        dvec[j,1]=((last-start+1)*n/2)*(ln(2*pi)+1)+((j-start+1)/2)*ln(det(m1))+((last-j+1)/2)*ln(det(m2)); 
+        j=j+1;
+endo; 
+optmle=minc(dvec[b1:b2,1]);
+dx=(b1-1)+minindc(dvec[b1:b2,1]);
+retp(optmle,dx);
+endp;
+
+
+@************************************************************************@
+/* This procedure is called when multiple breaks are present*/
+proc(3)=dating_M2(bigvec2,h,m,n,bigt);
+
+@ Input: 
+h:    mimunum number of observations in each segment
+m:    number of breaks.
+bigt: number of obervations in the sample
+Output: 
+global:  The maximized likelhood function under optimal partitons.
+datevec: the estimated break dates.
+@ 
+
+local datevec,optdat,optmle,dvec,i,mlemax,datx,j1,ib,jlast;
+local global,vecmle,jb,xx,bigvec,zi, yi, k, temp,b,beta,pmle,q;
+
+datevec=zeros(m,m); 
+@up-tiangular matrix contains the estimated break dates for break 
+numbers from one to m
+@
+optdat=zeros(bigt,m); 
+@row index corresponds to the ending dates, column index corresponds 
+to the number of breaks permitted before the ending date the cell 
+contains the optimal final break date
+@
+optmle=zeros(bigt,m);      
+@same as above, the cell contains the MML corresponding to that break
+sturcture
+@
+dvec=zeros(bigt,1);                        
+@the index is the date after which we inserting the break point.The 
+cell contains the corresponding MML
+@ 
+global=zeros(m,1);                            
+@Global MML when i breaks are permitted
+@
+bigvec=zeros(bigt*(bigt+1)/2,1);        
+@the vector that contains the MML corresponding to all the possible segments. 
+The MML corresponding to the segment starting at J and lasting for span 
+corresponds to the index T(j-1)-(j-1)(j-2)/2+span
+@
+
+if m == 1;
+    {mlemax,datx}=parti2(1,h,bigt-h,bigt,bigvec2,bigt,n);
+    datevec[1,1]=datx;
+    global[1,1]=mlemax; 
+else;
+
+    j1=2*h;                                                                              
+    @First loop. Looking for the optimal one break partitions for break 
+    dates between h and T-h. j1 is the last date of the segments.
+    @
+    do while j1 <= bigt; 
+    {mlemax,datx}=parti2(1,h,j1-h,j1,bigvec2[1:2*bigt,.],bigt,n);           
+    optmle[j1,1]=mlemax;         @ again no typo@                                                     
+    optdat[j1,1]=datx;                                                           
+    j1=j1+1;
+    endo;
+    global[1,1]=optmle[bigt,1];   @ no typo@
+    datevec[1,1]=optdat[bigt,1];
+
+    @
+    When this is done the algorithm looks for optimal 2,3,... breaks
+    partitions. The index used is ib.
+    @
+
+    ib=2;
+    do while ib <= m;
+        if ib == m;                 
+            @if we have reached the highest number of breaks considered, only 
+            one segment is considered, that which ends at the last date of 
+            the sample.
+            @
+            jlast=bigt;
+            jb=ib*h;          @date of the break@
+            do while jb <=jlast-h;
+                pmle=bigvec2[bigt*m+jb+1:bigt*(m+1),.]'bigvec2[bigt*m+jb+1:bigt*(m+1),.]/(bigt-jb);
+                dvec[jb,1] = optmle[jb,ib-1]+((bigt-jb+1)*n/2)*(ln(2*pi)+1)+((bigt-jb+1)/2)*ln(det(pmle));
+                jb=jb+1;
+            endo;
+            optmle[jlast,ib]=minc(dvec[ib*h:jlast-h,1]);
+            optdat[jlast,ib]=(ib*h-1)+minindc(dvec[ib*h:jlast-h,1]);
+
+        else;
+            @if we have not reached the highest number of breaks considered, 
+            we need to loop over the last date of the segment, between (ib+1)*h and T.
+            @
+            jlast=(ib+1)*h;
+            do while jlast <= bigt;
+                jb=ib*h;             @date of the break@
+                do while jb <=jlast-h;
+                    pmle=bigvec2[bigt*ib+jb+1:bigt*ib+jlast,.]'bigvec2[bigt*ib+jb+1:bigt*ib+jlast,.]/(jlast-jb);
+                    dvec[jb,1] = optmle[jb,ib-1]+((jlast-jb+1)*n/2)*(ln(2*pi)+1)+((jlast-jb+1)/2)*ln(det(pmle));
+                    jb=jb+1;
+                endo;
+                optmle[jlast,ib]=minc(dvec[ib*h:jlast-h,1]);
+                optdat[jlast,ib]=(ib*h-1)+minindc(dvec[ib*h:jlast-h,1]);
+                jlast=jlast+1;
+            endo;
+        endif;
+
+        @At each time we loop the results with ib breaks are retrieved
+        and printed@
+
+        datevec[ib,ib]=optdat[bigt,ib];
+        i=1;
+        do while i <= ib-1;
+            xx=ib-i;
+            datevec[xx,ib]=optdat[datevec[xx+1,ib],xx];
+            i=i+1;
+        endo;
+        global[ib,1]=optmle[bigt,ib];
+        ib=ib+1;
+    endo;
+
+endif;         @closing the if for the case m >1@
+
+retp(-global,datevec,bigvec);
+endp;
+
+
+@********************************************************************@
+/* This procedure estimates the breaks and the coefficients 
+using the restrictions, based on the iterative method*/
+proc(2)=est(maty,matz,n,m,bigt,trm,R,brbeta,brv);
+@ Input:
+        y: dependent variable
+        z: independent variable
+        q: total number of regression coefficients in a single regime
+        bigt: sample size
+  Output:
+        dx: the break dates
+        delta: the coefficients
+@ 
+local h,global,datevec,bigvec,br,tbar,i,t1,t2,zi,delta,bigvec2,tstar,diff,dx,zbar;
+local rbeta, rvv,q;
+    q=cols(matz);
+    h=round(trm*bigt);
+    tstar=bigt;  
+	{global,datevec,bigvec}=dating_mle(maty,matz,n,h,m,bigt);
+                                     @find the optimal partiton of  the sample without restrictions 
+                                     on the coefficients, serves as the starting value of the 
+                                     iterative procedure@
+    br=datevec[.,m];                    @break dates@
+    {rbeta,rvv}=r_estim(maty,matz,bigt,n,m,datevec[.,m],R,brbeta,brv);
+	                                 @now  find optimal partitions under the estimated coefficients@
+	diff=0;
+	do while diff/=-1;
+             bigvec2=residuals(maty,matz,rbeta,q,n,m);
+	        {global,datevec,bigvec}=dating_M2(bigvec2,h,m,n,bigt);
+	         if     datevec[.,m]==br;
+	                diff=-1;
+			        dx=br;
+	         else;
+                     br=datevec[.,m];
+                    {rbeta,rvv}=r_estim(maty,matz,bigt,n,m,br,R,brbeta,brv);
+		             diff=diff+1;               
+             endif;
+	  endo;
+retp(dx,rbeta);
+endp;
+@********************************************************************@
+
+/* Procedure that computes confidence intervals for the break dates based on 
+the "shrinking shifts asymptotic framework. */ 
+
+proc(1)= interval2(maty,matx,m,n,bigt,br,beta,vv,hetq,vauto,brv,brbeta,prewhit);
+local a,bound,i,j,A1,A2,Q1,Q2,Pi1,Pi2,vvar1,vvar2,cvf,Omiga1,omiga2,diagx;
+local phi1s,phi2s,eta,Delt1,Delt2,Gam1,Gam2,res,k,tempmat,to,diffb;
+
+@now constructing the quantities needed for the limit distribution@
+
+bound=zeros(m,4);
+diagx=pzbar(matx,m,br,bigt);
+
+br=br|(rows(maty)/n);
+res=maty-diagx*beta;
+res=reshape(res,rows(res)/n,n); 
+@get standarized residuals@
+j=1;
+do while j<=m+1;
+    if j==1;
+     res[1:br[j],.]=res[1:br[j],.]*invpd(sqrm(vv[1:j*n,.]));
+    else;
+     res[br[j-1]+1:br[j],.]=res[br[j-1]+1:br[j],.]*invpd(sqrm(vv[(j-1)*n+1:j*n,.]));
+    endif;
+j=j+1;
+endo;
+@xy(seqa(1,1,rows(res)),res);@
+j=1;
+do while j<=m; 
+@construct confidence inteval for each break@
+vvar1=vv[(j-1)*n+1:j*n,.];
+vvar2=vv[(j)*n+1:(j+1)*n,.]; 
+A1=sqrm(vvar1)*invpd(vvar2)*(vvar2-vvar1)*invpd(sqrm(vvar1));
+A2=sqrm(vvar2)*invpd(vvar1)*(vvar2-vvar1)*invpd(sqrm(vvar2));
+Q1=0;
+Q2=0;
+Pi1=0;
+Pi2=0;
+if j==1;
+i=1;
+else;
+i=br[j-1]+1;
+endif;
+if hetq==0;
+    if (brv==1) and (vauto==1); @ change in variance and/or in the regression coefficients, 
+                                    allow serial correlation
+                                 and change in the distribution of the regressors@
+        @construct estimate of pi1@
+        tempmat=zeros(br[j]-i+1,cols(matx));
+        k=1;
+        do while k<=br[j]-i+1;
+        tempmat[k,.]=(matx[(i-1+k-1)*n+1:(i-1+k)*n,.]'invpd(vvar2)*sqrm(vvar1)*(res[i-1+k,.]'))';
+        k=k+1;
+        endo;
+        pi1=correct(tempmat,prewhit); @with scaling@
+        @construct estimate of omiga@
+        tempmat=zeros(br[j]-i+1,n^2);
+        k=1;
+        do while k<=br[j]-i+1;
+        tempmat[k,.]=vec(res[i-1+k,.]'res[i-1+k,.]-eye(n))';
+        k=k+1;
+        endo;
+        omiga1=correct(tempmat,prewhit);       @with scaling@
+        do while i<=br[j];
+        Q1=Q1+matx[(i-1)*n+1:i*n,.]'invpd(vvar2)*matx[(i-1)*n+1:i*n,.];
+        i=i+1;
+        endo;
+        if j==1;
+        Q1=Q1/br[j];
+        else;
+        Q1=Q1/(br[j]-br[j-1]);
+        endif;
+        i=br[j]+1;
+        @construct estimate of pi2@
+        tempmat=zeros(br[j+1]-i+1,cols(matx));
+        k=1;
+        do while k<=br[j+1]-i+1;
+        tempmat[k,.]=(matx[(i-1+k-1)*n+1:(i-1+k)*n,.]'invpd(vvar1)*sqrm(vvar2)*(res[i-1+k,.]'))';
+        k=k+1;
+        endo;
+        pi2=correct(tempmat,prewhit); @with scaling@
+        tempmat=zeros(br[j+1]-i+1,n^2);
+        k=1;
+        do while k<=br[j+1]-i+1;
+        tempmat[k,.]=vec(res[i-1+k,.]'res[i-1+k,.]-eye(n))';
+        k=k+1;
+        endo;
+        omiga2=correct(tempmat,prewhit);       @with scaling@
+        do while i<=br[j+1];
+        Q2=Q2+matx[(i-1)*n+1:i*n,.]'invpd(vvar1)*matx[(i-1)*n+1:i*n,.];
+        i=i+1;
+        endo;
+        Q2=Q2/(br[j+1]-br[j]);
+        diffb=beta[j*cols(matx)+1:(j+1)*cols(matx)]-beta[(j-1)*cols(matx)+1:(j)*cols(matx)];
+        Delt1=(1/2)*sumc(diag(A1*A1))+diffb'*Q1*diffb;
+        Delt2=(1/2)*sumc(diag(A2*A2))+diffb'*Q2*diffb;
+        Gam1=sqrt((1/4)*vec(A1)'Omiga1*vec(A1)+diffb'*Pi1*diffb);
+        Gam2=sqrt((1/4)*vec(A2)'Omiga2*vec(A2)+diffb'*Pi2*diffb);
+     endif;
+     if (brv==1) and (vauto==0);  @change in the variance and/or in the regression coefficients@
+        omiga1=0;
+        do while i<=br[j];
+        omiga1=omiga1+vec(res[i,.]'res[i,.]-eye(n))*vec(res[i,.]'res[i,.]-eye(n))';
+        Q1=Q1+matx[(i-1)*n+1:i*n,.]'invpd(vvar2)*matx[(i-1)*n+1:i*n,.];
+        Pi1=Pi1+matx[(i-1)*n+1:i*n,.]'invpd(vvar2)*vvar1*invpd(vvar2)*matx[(i-1)*n+1:i*n,.];
+        i=i+1;
+        endo; 
+        if j==1;
+        omiga1=omiga1/br[j];
+        Q1=Q1/br[j];
+        Pi1=Pi1/br[j];
+
+/*print omiga1 "mmiga";
+print Q1 "q1";
+print Pi1 "pi1";
+*/
+
+        else;
+        omiga1=omiga1/(br[j]-br[j-1]);
+        Q1=Q1/(br[j]-br[j-1]);
+        Pi1=Pi1/(br[j]-br[j-1]);
+        endif;
+        i=br[j]+1;
+        omiga2=0;
+        do while i<=br[j+1];
+        omiga2=omiga2+vec(res[i,.]'res[i,.]-eye(n))*vec(res[i,.]'res[i,.]-eye(n))';
+        Pi2=Pi2+matx[(i-1)*n+1:(i)*n,.]'invpd(vvar1)*vvar2*invpd(vvar1)*matx[(i-1)*n+1:(i)*n,.];
+        Q2=Q2+matx[(i-1)*n+1:i*n,.]'invpd(vvar1)*matx[(i-1)*n+1:i*n,.];
+        i=i+1;
+        endo;
+        omiga2=omiga2/(br[j+1]-br[j]);
+        Q2=Q2/(br[j+1]-br[j]);
+        Pi2=Pi2/(br[j+1]-br[j]);
+/* print omiga2 "mmiga";
+print Q2 "q1";
+print Pi2 "pi1";
+*/
+
+
+        diffb=beta[j*cols(matx)+1:(j+1)*cols(matx)]-beta[(j-1)*cols(matx)+1:(j)*cols(matx)];
+        Delt1=(1/2)*sumc(diag(A1*A1))+diffb'*Q1*diffb;
+        Delt2=(1/2)*sumc(diag(A2*A2))+diffb'*Q2*diffb;
+        Gam1=sqrt((1/4)*vec(A1)'Omiga1*vec(A1)+diffb'*Pi1*diffb);
+        Gam2=sqrt((1/4)*vec(A2)'Omiga2*vec(A2)+diffb'*Pi2*diffb);
+
+
+     endif;
+     if (brv==0) and (brbeta==1) and (vauto==1);  @change in the coefficients only@
+
+         @construct estimate of pi1@
+        tempmat=zeros(bigt,cols(matx));
+        k=1;
+        do while k<=bigt;
+        tempmat[k,.]=(matx[(k-1)*n+1:(k)*n,.]'invpd(vvar2)*sqrm(vvar1)*(res[k,.]'))';
+        k=k+1;
+        endo;
+        pi1=correct(tempmat,prewhit); @with scaling@ 
+        k=1;
+        do while k<=bigt;
+        Q1=Q1+matx[(k-1)*n+1:k*n,.]'invpd(vvar2)*matx[(k-1)*n+1:k*n,.];
+        k=k+1;
+        endo;
+        Q1=Q1/bigt;
+        pi2=pi1;
+        Q2=Q1;
+        diffb=beta[j*cols(matx)+1:(j+1)*cols(matx)]-beta[(j-1)*cols(matx)+1:(j)*cols(matx)];
+        Delt1=diffb'*Q1*diffb;
+        Delt2=diffb'*Q2*diffb;
+        Gam1=sqrt(diffb'*Pi1*diffb);
+        Gam2=sqrt(diffb'*Pi2*diffb);
+     endif;
+    if (brv==0) and (brbeta==1) and (vauto==0);  @change in the coefficients only@
+        k=1;
+        do while k<=bigt;
+        Q1=Q1+matx[(k-1)*n+1:k*n,.]'invpd(vvar2)*matx[(k-1)*n+1:k*n,.];
+        Pi1=Pi1+matx[(k-1)*n+1:k*n,.]'invpd(vvar2)*vvar1*invpd(vvar2)*matx[(k-1)*n+1:k*n,.];
+        k=k+1;
+        endo;
+        Q1=Q1/bigt;
+        Pi1=Pi1/bigt;
+        pi2=pi1;
+        Q2=Q1;
+        diffb=beta[j*cols(matx)+1:(j+1)*cols(matx)]-beta[(j-1)*cols(matx)+1:(j)*cols(matx)];
+        Delt1=diffb'*Q1*diffb;
+        Delt2=diffb'*Q2*diffb;
+        Gam1=sqrt(diffb'*Pi1*diffb);
+        Gam2=sqrt(diffb'*Pi2*diffb);
+     endif;
+elseif hetq==1; @ allow the distribution of the regressors to be different, we only need to seperately treat vauto=1/0@
+                @ for a partial break model, the corresponding coefficients are zero@
+    if  vauto==1;
+        tempmat=zeros(br[j]-i+1,cols(matx)); 
+        k=1;
+        do while k<=br[j]-i+1;
+        tempmat[k,.]=(matx[(i-1+k-1)*n+1:(i-1+k)*n,.]'invpd(vvar2)*sqrm(vvar1)*(res[i-1+k,.]'))';
+        k=k+1;
+        endo;
+        pi1=correct(tempmat,prewhit); @with scaling@
+        @construct estimate of omiga@
+        tempmat=zeros(br[j]-i+1,n^2);
+        k=1;
+        do while k<=br[j]-i+1;
+        tempmat[k,.]=vec(res[i-1+k,.]'res[i-1+k,.]-eye(n))';
+        k=k+1;
+        endo;
+        omiga1=correct(tempmat,prewhit);       @with scaling@     
+        do while i<=br[j];
+        Q1=Q1+matx[(i-1)*n+1:i*n,.]'invpd(vvar2)*matx[(i-1)*n+1:i*n,.];
+        i=i+1;
+        endo;
+        if j==1;
+        Q1=Q1/br[j];
+        else;
+        Q1=Q1/(br[j]-br[j-1]);
+        endif;
+        i=br[j]+1;
+        tempmat=zeros(br[j+1]-i+1,cols(matx));
+        k=1;
+        do while k<=br[j+1]-i+1;
+        tempmat[k,.]=(matx[(i-1+k-1)*n+1:(i-1+k)*n,.]'invpd(vvar1)*sqrm(vvar2)*(res[i-1+k,.]'))';
+        k=k+1;
+        endo;
+        pi2=correct(tempmat,prewhit); @with scaling@
+        tempmat=zeros(br[j+1]-i+1,n^2);
+        k=1;
+        do while k<=br[j+1]-i+1;
+        tempmat[k,.]=vec(res[i-1+k,.]'res[i-1+k,.]-eye(n))';
+        k=k+1;
+        endo;
+        omiga2=correct(tempmat,prewhit);       @with scaling@
+        do while i<=br[j+1];
+        Q2=Q2+matx[(i-1)*n+1:i*n,.]'invpd(vvar1)*matx[(i-1)*n+1:i*n,.];
+        i=i+1;
+        endo;
+        Q2=Q2/(br[j+1]-br[j]);
+        diffb=beta[j*cols(matx)+1:(j+1)*cols(matx)]-beta[(j-1)*cols(matx)+1:(j)*cols(matx)];
+        Delt1=(1/2)*sumc(diag(A1*A1))+diffb'*Q1*diffb;
+        Delt2=(1/2)*sumc(diag(A2*A2))+diffb'*Q2*diffb;
+        Gam1=sqrt((1/4)*vec(A1)'Omiga1*vec(A1)+diffb'*Pi1*diffb);
+        Gam2=sqrt((1/4)*vec(A2)'Omiga2*vec(A2)+diffb'*Pi2*diffb);
+     endif;
+     if vauto==0;  @change in the variance and/or in the regression coefficients@
+        omiga1=0;
+        to=0;
+        do while i<=br[j];
+        omiga1=omiga1+vec(res[i,.]'res[i,.]-eye(n))*vec(res[i,.]'res[i,.]-eye(n))';
+        Q1=Q1+matx[(i-1)*n+1:i*n,.]'invpd(vvar2)*matx[(i-1)*n+1:i*n,.];
+        Pi1=Pi1+matx[(i-1)*n+1:i*n,.]'invpd(vvar2)*vvar1*invpd(vvar2)*matx[(i-1)*n+1:i*n,.];
+        i=i+1;
+        endo;
+        if j==1;
+        omiga1=omiga1/br[j];
+        Q1=Q1/br[j];
+        Pi1=Pi1/br[j];
+        else;
+        omiga1=omiga1/(br[j]-br[j-1]);
+        Q1=Q1/(br[j]-br[j-1]);
+        Pi1=Pi1/(br[j]-br[j-1]);
+        endif;
+        i=br[j]+1;
+        omiga2=0;
+        do while i<=br[j+1];
+        omiga2=omiga2+vec(res[i,.]'res[i,.]-eye(n))*vec(res[i,.]'res[i,.]-eye(n))';
+        Pi2=Pi2+matx[(i-1)*n+1:(i)*n,.]'invpd(vvar1)*vvar2*invpd(vvar1)*matx[(i-1)*n+1:(i)*n,.];
+        Q2=Q2+matx[(i-1)*n+1:i*n,.]'invpd(vvar1)*matx[(i-1)*n+1:i*n,.];
+        i=i+1;
+        endo;
+        omiga2=omiga2/(br[j+1]-br[j]);
+        Q2=Q2/(br[j+1]-br[j]);
+        Pi2=Pi2/(br[j+1]-br[j]);
+        diffb=beta[j*cols(matx)+1:(j+1)*cols(matx)]-beta[(j-1)*cols(matx)+1:(j)*cols(matx)];
+        Delt1=(1/2)*sumc(diag(A1*A1))+diffb'*Q1*diffb;
+        Delt2=(1/2)*sumc(diag(A2*A2))+diffb'*Q2*diffb;
+        Gam1=sqrt((1/4)*vec(A1)'Omiga1*vec(A1)+diffb'*Pi1*diffb);
+        Gam2=sqrt((1/4)*vec(A2)'Omiga2*vec(A2)+diffb'*Pi2*diffb);
+     endif;
+endif;
+
+eta=Delt2/Delt1;
+phi1s=Gam1*Gam1/Delt1;
+phi2s= Gam2*Gam2/Delt2;
+
+cvf=cvg(eta,phi1s,phi2s);
+a=(Delt1/Gam1)^2;
+@print " a" a;@
+bound[j,1]=br[j,1]-cvf[4,1]/a;
+bound[j,2]=br[j,1]-cvf[1,1]/a;
+bound[j,3]=br[j,1]-cvf[3,1]/a;
+bound[j,4]=br[j,1]-cvf[2,1]/a;
+j=j+1;
+endo;
+
+bound[.,1]=int(bound[.,1]);
+bound[.,2]=int(bound[.,2])+1;
+bound[.,3]=int(bound[.,3]);
+bound[.,4]=int(bound[.,4])+1;
+retp(bound);
+endp;
+
+@********************************************************************@
+
+/* procedure that obtains the robust standard errors*/
+proc correct(res,prewhit);
+local jh,imat,d,nt,i,b,bmat,vstar,hac,vmat;
+@main procedures which activates the computation of robust standard
+errors.@
+
+d=cols(res);
+nt=rows(res);
+b=zeros(d,1);
+bmat=zeros(d,d);
+vstar=zeros(nt-1,d);
+vmat=res;
+
+@Procedure that applies prewhitenning to the matrix vmat by filtering
+with a VAR(1). if prewhit=0, it is skipped.@
+
+
+if prewhit == 1;
+
+/* estimating the VAR(1) */
+i=1;
+do while  i <= d;
+b=olsqr(vmat[2:nt,i],vmat[1:nt-1,.]);
+bmat[.,i]=b;
+vstar[.,i]=vmat[2:nt,i]-vmat[1:nt-1,.]*b;
+i=i+1;
+endo;
+
+/* call the kernel on the residuals */
+
+jh=jhatpr(vstar);
+
+/* recolor */
+
+hac=inv(eye(d)-bmat)*jh*(inv(eye(d)-bmat))';
+
+else;
+hac=jhatpr(vmat);
+endif;
+retp(hac);
+endp;
+
+@********************************************************************@
+
+proc jhatpr(vmat);
+local d,nt,jhat,j,st;
+@Procedure to compute the long-run covariance matrix of vmat.@
+
+nt=rows(vmat);
+d=cols(vmat);
+jhat=zeros(d,d);
+
+/* calling the automatic bandwidth selection*/
+{st}=bandw(vmat);
+
+@lag 0 covariance@
+jhat=vmat'vmat;
+
+@forward sum@
+j=1;
+do while j <= nt-1;
+jhat=jhat+kern(j/st)*vmat[j+1:nt,.]'vmat[1:nt-j,.];
+j=j+1;
+endo;
+
+@bacward sum@
+j=1;
+do while j <= nt-1;
+jhat=jhat+kern(j/st)*vmat[1:nt-j,.]'vmat[j+1:nt,.];
+j=j+1;
+endo;
+
+@small sample correction@
+jhat=jhat/(nt-d);
+retp(jhat);
+endp;
+
+@********************************************************************@
+
+proc bandw(vhat);
+local nt,i,b,sig,a2,a2n,a2d,st,d;
+@procedure that compute the automatic bandwidth based on AR(1)
+approximation for each vector of the matrix vhat. Each are given
+equal weigths of 1.@
+
+nt=rows(vhat);
+d=cols(vhat);
+a2n=0;
+a2d=0;
+i=1;
+do while i <= d;
+b=olsqr(vhat[2:nt,i],vhat[1:nt-1,i]);
+sig=(vhat[2:nt,i]-b*vhat[1:nt-1,i])'(vhat[2:nt,i]-b*vhat[1:nt-1,i]);
+sig=sig/(nt-1);
+a2n=a2n+4*b*b*sig*sig/(1-b)^8;
+a2d=a2d+sig*sig/(1-b)^4;
+i=i+1;
+endo;
+a2=a2n/a2d;
+st=1.3221*(a2*nt)^.2;
+retp(st);
+endp;
+
+@********************************************************************@
+
+proc kern(x);
+local del,del1,ker;
+@procedure to evaluate the quadratic kernel at some value x.@
+
+del=6*pi*x/5;
+ker=3*(sin(del)/del-cos(del))/(del*del);
+retp(ker);
+endp;
+
+@*******************************************************************@
+proc(1)=cvlr(k,q,trm);
+local cv90, cv95,cv975,cv99;
+cv90=(7.551+1.718*q-0.041*q*q-0.610*k-15.846*trm+0.025*(q/trm))*exp(0.338/k-0.014/(trm*k));
+cv95=(8.238+1.756*q-0.043*q*q-0.659*k-15.436*trm+0.025*(q/trm))*exp(0.389/k-0.013/(trm*k));
+cv975=(8.968+1.788*q-0.045*q*q-0.715*k-15.255*trm+0.025*(q/trm))*exp(0.426/k-0.013/(trm*k));
+cv99=(9.879+1.771*q-0.042*q*q-0.777*k-14.551*trm+0.025*(q/trm))*exp(0.471/k-0.012/(trm*k));
+retp(k*(cv90~cv95~cv975~cv99));
+endp;
+
+proc(1)=cvud(q,trm);
+local cv90, cv95,cv975,cv99;
+cv90=(6.917+2.930*q-9.275*trm)*exp(-0.028*q-0.406*trm);
+cv95=(8.228+3.095*q-9.644*trm)*exp(-0.029*q-0.291*trm);
+cv975=(9.436+3.304*q-9.301*trm)*exp(-0.030*q-0.259*trm);
+cv99=(11.211+3.366*q-7.279*trm)*exp(-0.027*q-0.268*trm);
+retp(cv90~cv95~cv975~cv99);
+endp;
+
+proc(1)=cvwd(q,trm);
+local cv90, cv95,cv975,cv99;
+cv90=(7.316+3.128*q-8.624*trm)*exp(-0.029*q-0.412*trm);
+cv95=(9.039+3.318*q-9.969*trm)*exp(-0.030*q-0.327*trm);
+cv975=(10.703+3.465*q-11.119*trm)*exp(-0.031*q-0.250*trm);
+cv99=(13.189+3.346*q-11.870*trm)*exp(-0.026*q-0.173*trm);
+retp(cv90~cv95~cv975~cv99);
+endp;
+
+proc(1)=supseq(l,q,trm);
+local cv90, cv95,cv975,cv99;
+cv90=(8.397+3.702*q-0.209*q*q+0.317*(l+1)-3.736/(l+1)-11.596*trm)*exp(-0.027*q+0.005*q*q);
+cv95=(9.879+4.086*q-0.232*q*q+0.322*(l+1)-3.687/(l+1)-11.931*trm)*exp(-0.039*q+0.006*q*q);
+cv975=(11.424+4.435*q-0.261*q*q+0.300*(l+1)-3.700/(l+1)-12.292*trm)*exp(-0.047*q+0.006*q*q);
+cv99=(13.073+4.954*q-0.317*q*q+0.285*(l+1)-3.419/(l+1)-12.452*trm)*exp(-0.058*q+0.008*q*q);
+retp(cv90~cv95~cv975~cv99);
+endp;
+
+@********************************************************************@
+/*sequential likelihood ratio*/
+proc(1)=seqlr(maty,matz,n,dt,nseg,bigt,h,brbeta,brv);
+local length,news,dv,is,ssr,ds,ssr0,ftestv,maxf,newd,in,starti,endi;
+local dxi,rbetai,lrtest,segy,segz;
+
+@procedure that computes the supF(l+1|l) test l=nseg-1. The l breaks
+under the null are taken from the global minimization (in dt).@
+
+ssr=zeros(nseg,1);
+lrtest=zeros(nseg,1);
+dv=zeros(nseg+1,1);
+dv[2:nseg,1]=dt;
+dv[nseg+1,1]=bigt;
+ds=zeros(nseg,1);
+
+in=0;
+is=1;
+do while is <= nseg;
+length=dv[is+1,1]-dv[is,1];
+if length >= 2*h;
+    starti=dv[is,1]+1;
+    endi=dv[is+1];
+    segy=maty[n*(starti-1)+1:n*endi];
+    segz=matz[n*(starti-1)+1:n*endi,.];
+    if brbeta==1 and brv==0;
+    {dxi,rbetai}=est(segy,segz,n,1,endi-starti+1,trm,eye(cols(matz)*2),1,0);
+    lrtest[is]=suplr(segy,segz,1,n,dxi,rbetai,endi-starti+1,1,0);
+    endif;
+    if brbeta==0 and brv==1;
+    {dxi,rbetai}=est(segy,segz,n,1,endi-starti+1,trm,ones(2,1).*.eye(cols(matz)),0,1);
+    lrtest[is]=suplr(segy,segz,1,n,dxi,rbetai,endi-starti+1,0,1);
+    endif;
+    if brbeta==1 and brv==1;
+    {dxi,rbetai}=est(segy,segz,n,1,endi-starti+1,trm,eye(cols(matz)*2),1,1);
+    lrtest[is]=suplr(segy,segz,1,n,dxi,rbetai,endi-starti+1,1,1);
+    endif;
+else;
+in=in+1;
+lrtest[is,1]=0.0;
+endif;
+is=is+1;
+endo;
+if in == nseg;
+print "Given the location of the breaks from the global optimization";
+print "with " nseg-1 "breaks there was no more place to insert ";
+print "an additional breaks that satisfy the minimal length requirement.";
+endif;
+maxf=maxc(lrtest[1:nseg,1]);
+retp(maxf);
+endp;
+
+@********************************************************************@
+
+@********************************************************************@
+/*sequential f test*/
+proc(1)=seqf(maty,matz,n,dt,nseg,bigt,h,brbeta,brv,prewhit);
+local length,news,dv,is,ssr,ds,ssr0,ftestv,maxf,newd,in,starti,endi;
+local dxi,rbetai,lrtest,segy,segz;
+
+@procedure that computes the supF(l+1|l) test l=nseg-1. The l breaks
+under the null are taken from the global minimization (in dt).@
+
+ssr=zeros(nseg,1);
+lrtest=zeros(nseg,1);
+dv=zeros(nseg+1,1);
+dv[2:nseg,1]=dt;
+dv[nseg+1,1]=bigt;
+ds=zeros(nseg,1);
+
+in=0;
+is=1;
+do while is <= nseg;
+length=dv[is+1,1]-dv[is,1];
+if length >= 2*h;
+    starti=dv[is,1]+1;
+    endi=dv[is+1];
+    segy=maty[n*(starti-1)+1:n*endi];
+    segz=matz[n*(starti-1)+1:n*endi,.];
+    {dxi,rbetai}=est(segy,segz,n,1,endi-starti+1,trm,eye(cols(matz)*2),1,0);
+    lrtest[is]=supft(segy,segz,1,n,dxi,rbetai,endi-starti+1,1,0,prewhit);
+    else;
+in=in+1;
+lrtest[is,1]=0.0;
+endif;
+is=is+1;
+endo;
+if in == nseg;
+print "Given the location of the breaks from the global optimization";
+print "with " nseg-1 "breaks there was no more place to insert ";
+print "an additional breaks that satisfy the minimal length requirement.";
+endif;
+maxf=maxc(lrtest[1:nseg,1]);
+retp(maxf);
+endp;
+
+@********************************************************************@
+/*supF test allowing m breaks*/
+proc(1)=supft(maty,matx,m,n,br,rbeta,bigt,brbeta,brv,prewhit);
+local pmatx,res,xbstar,ubstar,ostar,sigma,umat,bigsig,tempmat,k,vmat,vbeta;
+local rmat,rsub,j,ftest;
+pmatx=pzbar(matx,m,br,bigt);
+res=maty-pmatx*rbeta; 
+umat=reshape(res,rows(res)/n,n); 
+sigma=umat'umat/bigT;
+bigsig=invpd(sqrm(eye(bigt).*.sigma));
+xbstar=bigsig*pmatx;
+ubstar=bigsig*res;
+ubstar=reshape(ubstar,rows(ubstar)/n,n);
+tempmat=zeros(bigt,cols(xbstar));
+k=1;
+do while k<=bigt;
+tempmat[k,.]=(xbstar[(k-1)*n+1:(k)*n,.]'(ubstar[k,.])')';
+k=k+1;
+endo;
+vmat=correct(tempmat,prewhit);
+vbeta=invpd(xbstar'xbstar/bigt)*(vmat/bigt)*invpd(xbstar'xbstar/bigt);
+rsub=zeros(m,m+1);
+j=1;
+do while j <= m;
+rsub[j,j]=-1;
+rsub[j,j+1]=1;
+j=j+1;
+endo;
+rmat=rsub.*.eye(cols(matx));
+ftest=rbeta'rmat'inv(rmat*vbeta*rmat')*rmat*rbeta;
+ftest=(bigt-(m+1)*cols(matx))*ftest/(bigt);
+retp(ftest);
+endp;
+
+@********************************************************************@
+/*restricted supF test allowing m breaks*/ 
+proc(1)=suprft(maty,matx,m,n,br,rbeta,R,bigt,brbeta,brv,prewhit); 
+local pmatx,res,xbstar,ubstar,ostar,sigma,umat,bigsig,tempmat,k,vmat,vbeta,vdelta;
+local rmat,rsub,j,ftest;
+pmatx=pzbar(matx,m,br,bigt);
+res=maty-pmatx*rbeta; 
+umat=reshape(res,rows(res)/n,n); 
+sigma=umat'umat/bigT;
+bigsig=invpd(sqrm(eye(bigt).*.sigma));
+pmatx=pmatx*R;
+xbstar=bigsig*pmatx;
+ubstar=bigsig*res;
+ubstar=reshape(ubstar,rows(ubstar)/n,n);
+tempmat=zeros(bigt,cols(xbstar));
+k=1;
+do while k<=bigt;
+tempmat[k,.]=(xbstar[(k-1)*n+1:(k)*n,.]'(ubstar[k,.])')';
+k=k+1;
+endo;
+vmat=correct(tempmat,prewhit);
+vdelta=invpd(xbstar'xbstar/bigt)*(vmat/bigt)*invpd(xbstar'xbstar/bigt);
+vbeta=R*vdelta*R';
+rsub=zeros(m,m+1);
+j=1;
+do while j <= m;
+rsub[j,j]=-1;
+rsub[j,j+1]=1;
+j=j+1;
+endo;
+rmat=rsub.*.eye(cols(matx));
+ftest=rbeta'rmat'pinv(rmat*vbeta*rmat')*rmat*rbeta;
+ftest=(bigt-(m+1)*cols(matx))*ftest/(bigt);
+retp(ftest);
+endp;
+
+
+@********************************************************************@
+/* confidence interval for the ordered breaks*/
+proc(1)=interval3(matz,maty,n,start,last,dx1,dx2,delt1,delt2,res,segT,bigM,rep);
+local ibigv,QQ,p1j,p2j,p12j,p1jp1,p2jp1,p12jp1,step,bigN,bigW,interv,grids,gridN;
+local W,k,sv1,sv2,V1,V2,Bv1,Bv2,sbv1,sbv2,z1,z2,z3,z4,z,Qj,Qjp1,obd,simu,count,sigma;
+local bound;
+step=1000;
+obd=zeros(rep,3);
+sigma=res'res/rows(res); @covariance matrix@
+if hetq==1;
+ibigv=eye(dx1-start+1).*.invpd(sigma); 
+Qj=matz[(start-1)*n+1:dx1*n,.]'ibigv*matz[(start-1)*n+1:dx1*n,.]/(dx1-start+1);
+ibigv=eye(last-dx2).*.invpd(sigma); 
+Qjp1=matz[dx2*n+1:last*n,.]'ibigv*matz[dx2*n+1:last*n,.]/(last-dx2);
+p1j=delt1'Qj*delt1;
+P2j=delt2'Qj*delt2;
+P12j=delt1'Qj*delt2;
+p1jp1=delt1'Qjp1*delt1;
+P2jp1=delt2'Qjp1*delt2;
+P12jp1=delt1'Qjp1*delt2;
+elseif hetq==0;
+ibigv=eye(last-start+1).*.invpd(sigma); 
+Qj=matz[(start-1)*n+1:last*n,.]'ibigv*matz[(start-1)*n+1:last*n,.]/(last-start);
+P1j=delt1'Qj*delt1;
+P2j=delt2'Qj*delt2;
+p12j=delt1'Qj*delt2;
+endif;
+@print ";;" p1j p2j p12j p1jp1 p2jp1 p12jp1;@
+bigN=step*bigM;
+interv=0.02; 
+grids=1/interv;
+gridN=grids*bigM;
+
+simu=1;
+do while simu<=rep;
+
+bigW=rndn(bigN,4);
+bigW=cumsumc(bigW);
+bigW=bigW/sqrt(step);
+W=zeros(gridN,4);
+k=1;
+do while k<=gridN;
+    W[k,.]=bigW[step*interv*(k-1)+1,.];
+    k=k+1;
+endo;
+sv1=seqa(-bigM,1/grids,2*grids*bigM+1);
+sv2=sv1;
+V1=sv1.*.ones(rows(sv1),1);
+V2=ones(rows(sv2),1).*.sv2;
+sbv1=rev(W[.,1])|zeros(1,1)|(W[.,4]);
+sbv2=rev(W[.,2])|zeros(1,1)|(W[.,3]);  @two sided Brownian motion@
+Bv1=sbv1.*.ones(rows(sbv1),1);
+Bv2=ones(rows(sbv2),1).*.sbv2;
+
+if hetq==1;
+Z1=(V1.<0).*(V2.<=0).*(v1.<=v2).*((Bv1+v1/2)+sqrt(p2j/p1j)*Bv2+v2/2*(p2j+2*P12j)/P1j);
+Z2=(V1.<0).*(V2.>0).*(Bv1+V1/2+sqrt(p2jp1/p1j)*Bv2-V2/2*(p2jp1/p1j));
+Z3=(v1.>=0).*(v2.>0).*(v1.<=v2).*(sqrt(p1jp1/p1j)*Bv1+sqrt(P2jp1/P1j)*Bv2-(P2jp1/P1j)*v2/2-((P1jp1+2*P12jp1)/P1j)*v1/2);
+Z4=(v1.>v2)*(-1);
+elseif hetq==0;
+Z1=(V1.<0).*(V2.<=0).*(v1.<=v2).*((Bv1+v1/2)+sqrt(p2j/p1j)*Bv2+v2/2*(p2j+2*P12j)/P1j);
+Z2=(V1.<0).*(V2.>0).*(Bv1+V1/2+sqrt(p2j/p1j)*Bv2-V2/2*(p2j/p1j));
+Z3=(v1.>=0).*(v2.>0).*(v1.<=v2).*(Bv1+sqrt(P2j/P1j)*Bv2-(P2j/P1j)*v2/2-((P1j+2*P12j)/P1j)*v1/2);
+Z4=(v1.>v2)*(-1);
+endif;
+Z=Z1+Z2+Z3+Z4;
+Z=v1~v2~Z;
+z=sortc(z,3);
+obd[simu,.]=z[rows(z),.];
+simu=simu+1;
+endo;
+obd[.,1]=sortc(obd[.,1],1);
+obd[.,2]=sortc(obd[.,2],1)@-(dx2-dx1)*p1j@;
+count=sumc(abs(abs(obd[.,1])-bigM).<1e-4)+sumc(abs(abs(obd[.,2])-bigM)<1e-4);
+if count>=rep*0.05;
+print "wrong bound";
+endif;
+bound=zeros(4,2);
+bound[1,.]=int((dx1~dx2)-obd[int(rep*0.025),1:2]/p1j)+ones(1,2);
+bound[2,.]=int((dx1~dx2)-obd[int(rep*0.05),1:2]/p1j)+ones(1,2);
+bound[3,.]=int((dx1~dx2)-obd[int(rep*0.95),1:2]/p1j);
+bound[4,.]=int((dx1~dx2)-obd[int(rep*0.975),1:2]/p1j);
+retp(bound);
+endp;
+
+
+@********************************************************************@
+/* Testing for ordered breaks, also estimating the break dates */
+proc(5)=brorder(maty,matz,n,q1,q2,h,T,trun);
+local bigvec,ii,jj,bigT,b,e,fit,vvar,vstar,umat,res,segx,segy,vecmle,itr,ibigv,zz,z1,res1,res2,TT;
+local vecmle2,H0like,H1like,lr,brdate,beta1,beta2;
+TT=T*T;
+vecmle=ones(TT,3+2*(q1+q2))*(-1e12);
+vecmle2=ones(TT,3+2*(q1+q2))*(-1e12);
+if cols(matz)/=q1+q2;
+print "wrong input of columns of regressors";
+endif;
+zz=matz~matz;
+z1=zz;
+ii=h;
+segx=zz;
+do while ii<=T-h;
+    ii=ii+1;
+    jj=0;
+    do while (ii+jj)<=T-h;
+    z1[ii*n+1:rows(zz),cols(matz)+1:cols(matz)+q1]=zz[ii*n+1:rows(zz),cols(matz)+1:cols(matz)+q1];
+    z1[1:ii*n,cols(matz)+1:cols(matz)+q1]=0.*zz[1:ii*n,cols(matz)+1:cols(matz)+q1];
+    z1[(ii+jj)*n+1:rows(zz),cols(matz)+q1+1:2*cols(matz)]=zz[(ii+jj)*n+1:rows(zz),cols(matz)+q1+1:2*cols(matz)];
+    z1[1:(ii+jj)*n,cols(matz)+q1+1:2*cols(matz)]=0.*zz[1:(ii+jj)*n,cols(matz)+q1+1:2*cols(matz)];
+    segx=z1;
+    segy=maty;
+    if jj==0;
+    b=inv(segx'segx)*segx'segy;   
+    else;
+    ibigv=eye(rows(segy)/n).*.invpd(vvar); 
+	b=invpd(segx'ibigv*segx)*segx'ibigv*segy;
+    endif;
+    res=segy-segx*b;
+    umat=reshape(res,rows(res)/n,n); 
+    vvar=umat'umat/rows(umat);
+    vstar=vvar+1;
+   itr=1;
+    do while maxc(abs(vecr(vvar-vstar)))>1e-8 and itr<1000;
+	    vstar=vvar; 
+        ibigv=eye(rows(segy)/n).*.invpd(vvar); 
+	    b=invpd(segx'ibigv*segx)*segx'ibigv*segy; 
+        res=segy-segx*b;
+        umat=reshape(res,rows(res)/n,n); 
+        vvar=umat'umat/rows(umat);
+	    itr=itr+1; 
+	    if itr==1000;
+	        print " warning: the FGLS fail, the result does not converge";
+	    endif;
+    endo; 
+    /*now caculate the likelihood function for the given partition*/
+    vecmle[(ii-1)*T+jj,1]=ii;
+    vecmle[(ii-1)*T+jj,2]=jj+ii;
+    vecmle[(ii-1)*T+jj,3]=-T/2*ln(det(vvar)); 
+    vecmle[(ii-1)*T+jj,3+1:3+2*(q1+q2)]=b';
+    jj=jj+1;
+    endo;
+endo;
+vecmle2=vecmle;
+vecmle2[.,3]=((vecmle2[.,2]-vecmle2[.,1]).<=trun).*vecmle2[.,3]+((vecmle2[.,2]-vecmle2[.,1]).>trun).*(-1e12);
+vecmle=sortc(vecmle,3);
+vecmle2=sortc(vecmle2,3);
+H1like=vecmle2[rows(vecmle2),3];
+@estimate a model with no change@
+    b=invpd(matz'matz)*matz'maty;  
+    res=maty-matz*b; 
+    umat=reshape(res,rows(res)/n,n); 
+    vvar=umat'umat/rows(umat);
+    vstar=vvar+1;
+   itr=1;
+    do while maxc(abs(vecr(vvar-vstar)))>1e-8 and itr<1000;
+	    vstar=vvar; 
+        ibigv=eye(rows(maty)/n).*.invpd(vvar); 
+	    b=invpd(matz'ibigv*matz)*matz'ibigv*maty; 
+        res=maty-matz*b;
+        umat=reshape(res,rows(res)/n,n); 
+        vvar=umat'umat/rows(umat);
+	    itr=itr+1; 
+	    if itr==1000;
+	        print " warning: the FGLS fail, the result does not converge";
+	    endif;
+    endo; 
+H0like=-T/2*ln(det(vvar));
+lr=2*(H1like-H0like);
+brdate=vecmle[rows(vecmle),1:2];
+beta1=vecmle[rows(vecmle),4:3+(q1+q2)];
+beta2=vecmle[rows(vecmle),4+(q1+q2):3+2*(q1+q2)]+vecmle[rows(vecmle),4:3+(q1+q2)];
+retp(brdate,beta1',beta2',umat,lr);
+endp;
+
+
+proc(0)=mainop(y,z,n,q1,q2,trmm,bigT,hetq,trun,getcon,bigM,rep);
+local lrtest,cvs,clevel,brdate,beta1,beta2,res,delt1,delt2,bound,h;
+local maty,matz,i;
+h=int(trmm*bigt);
+print "------------------------------------------------------------------------";
+print "The basic specifications for testing and estimation:";
+print "-------------------------------------------";
+print "(1) Trimming=" trmm;
+print "(2) T=" bigt;
+print "(3) The break in the first equation occurs first";
+if hetq==1;
+print "(4) the distribution of the regressors is allowed to change";
+else;
+print "(4) the distributions of the regressors is NOT allowed to change";
+endif;
+@transform the data@
+{maty,matz}=transf(y,z);
+@testing and estimation@
+{brdate,beta1,beta2,res,lrtest}=brorder(maty,matz,n,q1,q2,h,bigT,trun);
+delt1=(beta2[1:q1]-beta1[1:q1])|zeros(q2,1);
+delt2=zeros(q1,1)|(beta2[q1+1:q1+q2]-beta1[q1+1:q1+q2]);
+if getcon==1;
+bound=interval3(matz,maty,n,1,T,brdate[1],brdate[2],delt1,delt2,res,bigT,bigM,rep);
+endif;
+print " ";
+print "Output from the testing procedures:";
+print "------------------------------------------------------------------------";
+clevel=10~5~2.5~1;   @significance level@ 
+cvs=cvlr(1,q1+q2,h/bigT);
+print "The SupLR test for ordered breaks is" lrtest;
+print "-----------------";
+i=1;
+do while i<=4;
+print "The critical values at the" clevel[1,i] "% level are";
+print cvs[i];
+i=i+1;
+endo;
+print "------------------------------------------------------------------------";
+print "Output from the estimation procedure";
+print "--------------------------------------------";
+print " The estimated breaks are:" brdate;
+if getcon==1;
+print "--------------------------------------------";
+print "Confidence intervals for the break dates are:";
+print "The 95% C.I. for the first break is: " bound[4,1] bound[1,1];
+print "The 95% C.I. for the second break is: " bound[4,2] bound[1,2];
+print "The 90% C.I. for the first break is: " bound[3,1] bound[2,1];
+print "The 90% C.I. for the second break is: " bound[3,2] bound[2,2];
+endif;
+print "-------------------------------------------";
+print "The estimated coefficients are:";
+print "For the first regime:" beta1';
+print "For the second regime:" beta2';
+print "-------------------------------------------";
+endp;
+
+
+
+
