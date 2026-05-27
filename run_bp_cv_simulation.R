@@ -6,6 +6,7 @@
 #   Rscript run_bp_cv_simulation.R --mode=smoke --rep=500 --n-grid=300 --cores=4
 #   Rscript run_bp_cv_simulation.R --mode=bp --rep=10000 --n-grid=1000 --cores=14
 #   Rscript run_bp_cv_simulation.R --mode=final --rep=10000 --n-grid=1000 --cores=14
+#   Rscript run_bp_cv_simulation.R --mode=final --q-min=70 --q-max=80
 
 script_args <- commandArgs(trailingOnly = FALSE)
 file_arg <- grep("^--file=", script_args, value = TRUE)
@@ -48,6 +49,14 @@ arg_bool <- function(opts, key, default = TRUE) {
   tolower(as.character(value)) %in% c("1", "true", "t", "yes", "y")
 }
 
+arg_optional_int <- function(opts, key) {
+  value <- arg_value(opts, key, NULL)
+  if (is.null(value) || identical(value, "") || is.na(value)) {
+    return(NULL)
+  }
+  as.integer(value)
+}
+
 default_cores <- function() {
   cores <- parallel::detectCores(logical = TRUE)
   max(1L, min(14L, cores - 4L))
@@ -84,6 +93,32 @@ make_mode_grid <- function(mode, n_grid) {
     ),
     final = bp_extended_response_grid(n_grid = n_grid),
     stop("Unknown mode: ", mode)
+  )
+}
+
+filter_grid_q <- function(grid, q_min = NULL, q_max = NULL) {
+  if (is.null(q_min) && is.null(q_max)) {
+    return(grid)
+  }
+
+  keep <- function(data) {
+    if (!NROW(data)) {
+      return(data)
+    }
+    ok <- rep(TRUE, NROW(data))
+    if (!is.null(q_min)) {
+      ok <- ok & data$q >= q_min
+    }
+    if (!is.null(q_max)) {
+      ok <- ok & data$q <= q_max
+    }
+    data[ok, , drop = FALSE]
+  }
+
+  list(
+    fixed = keep(grid$fixed),
+    double = keep(grid$double),
+    sequential = keep(grid$sequential)
   )
 }
 
@@ -264,6 +299,8 @@ run_one_mode <- function(mode, opts) {
   n_cores <- arg_int(opts, "cores", default_cores())
   fixed_scale <- as.character(arg_value(opts, "fixed-scale", defaults$fixed_scale))
   do_fit <- arg_bool(opts, "fit", TRUE)
+  q_min <- arg_optional_int(opts, "q-min")
+  q_max <- arg_optional_int(opts, "q-max")
 
   out_root <- normalizePath(
     as.character(arg_value(opts, "out", file.path(script_dir, "cv_output"))),
@@ -275,6 +312,10 @@ run_one_mode <- function(mode, opts) {
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
   grid <- make_mode_grid(mode, n_grid)
+  grid <- filter_grid_q(grid, q_min = q_min, q_max = q_max)
+  if (!NROW(grid$fixed) && !NROW(grid$double) && !NROW(grid$sequential)) {
+    stop("The selected q range has no grid points.")
+  }
   config <- list(
     mode = mode,
     rep = rep,
@@ -282,6 +323,8 @@ run_one_mode <- function(mode, opts) {
     seed = seed,
     n_cores = n_cores,
     fixed_scale = fixed_scale,
+    q_min = if (is.null(q_min)) "" else q_min,
+    q_max = if (is.null(q_max)) "" else q_max,
     fixed_points = nrow(grid$fixed),
     double_points = nrow(grid$double),
     sequential_points = nrow(grid$sequential),

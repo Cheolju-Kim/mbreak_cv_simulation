@@ -3,7 +3,7 @@
 #$ -cwd
 #$ -j y
 #$ -V
-#$ -l h_rt=48:00:00
+#$ -l h_rt=24:00:00
 #$ -pe omp 14
 #$ -m ea
 #$ -M cheolju@bu.edu
@@ -20,6 +20,14 @@ export BP_CV_SEED="${BP_CV_SEED:-202}"
 export BP_CV_FIT="${BP_CV_FIT:-true}"
 export BP_CV_OUT="${BP_CV_OUT:-cv_output/scc}"
 
+extra_args=()
+if [ -n "${BP_CV_Q_MIN:-}" ]; then
+  extra_args+=(--q-min="${BP_CV_Q_MIN}")
+fi
+if [ -n "${BP_CV_Q_MAX:-}" ]; then
+  extra_args+=(--q-max="${BP_CV_Q_MAX}")
+fi
+
 Rscript run_bp_cv_simulation.R \
   --mode="${BP_CV_MODE}" \
   --rep="${BP_CV_REP}" \
@@ -27,4 +35,5 @@ Rscript run_bp_cv_simulation.R \
   --cores="${BP_CV_CORES}" \
   --seed="${BP_CV_SEED}" \
   --fit="${BP_CV_FIT}" \
-  --out="${BP_CV_OUT}"
+  --out="${BP_CV_OUT}" \
+  "${extra_args[@]}"
