@@ -104,6 +104,8 @@ chunk_dirs <- chunk_dirs[file.exists(file.path(chunk_dirs, "config.txt"))]
 
 manifest <- do.call(rbind, lapply(chunk_dirs, function(dir) {
   config <- read_config(file.path(dir, "config.txt"))
+  rds_path <- file.path(dir, paste0("cv_", config_value(config, "mode"), ".rds"))
+  csv_path <- file.path(dir, paste0("cv_", config_value(config, "mode"), ".csv"))
   data.frame(
     dir = dir,
     mode = config_value(config, "mode"),
@@ -115,11 +117,16 @@ manifest <- do.call(rbind, lapply(chunk_dirs, function(dir) {
     fixed_points = as.integer(config_value(config, "fixed_points")),
     double_points = as.integer(config_value(config, "double_points")),
     sequential_points = as.integer(config_value(config, "sequential_points")),
+    has_output = file.exists(rds_path) || file.exists(csv_path),
     stringsAsFactors = FALSE
   )
 }))
 
-selected <- manifest[manifest$mode == mode & manifest$rep == rep & manifest$n_grid == n_grid, , drop = FALSE]
+selected <- manifest[
+  manifest$mode == mode & manifest$rep == rep & manifest$n_grid == n_grid & manifest$has_output,
+  ,
+  drop = FALSE
+]
 if (!NROW(selected)) {
   stop("No matching chunk directories found for mode=", mode, ", rep=", rep, ", n_grid=", n_grid)
 }
@@ -190,4 +197,3 @@ cat("Combined output directory:", out_dir, "\n")
 cat("Chunks used:", NROW(selected), "\n")
 cat("q grid:", paste(q_seen, collapse = ", "), "\n")
 print(summary_by_stat, row.names = FALSE)
-
