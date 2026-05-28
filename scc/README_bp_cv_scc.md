@@ -122,6 +122,12 @@ Combined data and fitted coefficients are written under:
 cv_output/combined/
 ```
 
+Chunk output directories include the q range and SCC job id, for example:
+
+```text
+cv_output/scc/final_q25_40_job5840096_YYYYMMDD_HHMMSS/
+```
+
 The qsub log is created in the submission directory and is named from the job
 name, for example:
 

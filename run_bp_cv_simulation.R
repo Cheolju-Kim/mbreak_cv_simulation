@@ -308,7 +308,15 @@ run_one_mode <- function(mode, opts) {
   )
   dir.create(out_root, recursive = TRUE, showWarnings = FALSE)
   stamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-  out_dir <- file.path(out_root, paste0(mode, "_", stamp))
+  job_id <- Sys.getenv("JOB_ID", unset = "")
+  q_tag <- if (is.null(q_min) && is.null(q_max)) {
+    NULL
+  } else {
+    paste0("q", if (is.null(q_min)) "min" else q_min, "_", if (is.null(q_max)) "max" else q_max)
+  }
+  job_tag <- if (nzchar(job_id)) paste0("job", job_id) else paste0("seed", seed)
+  out_name <- paste(c(mode, q_tag, job_tag, stamp), collapse = "_")
+  out_dir <- file.path(out_root, out_name)
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
   grid <- make_mode_grid(mode, n_grid)
