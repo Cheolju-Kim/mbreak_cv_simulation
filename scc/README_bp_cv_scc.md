@@ -109,6 +109,19 @@ response_surface_coefficients_<mode>.csv
 response_surface_fits_<mode>.rds
 ```
 
+After all chunked `final` jobs finish, combine the chunk outputs and fit the
+response surfaces once:
+
+```bash
+Rscript combine_bp_cv_chunks.R --mode=final --rep=10000 --n-grid=1000
+```
+
+Combined data and fitted coefficients are written under:
+
+```text
+cv_output/combined/
+```
+
 The qsub log is created in the submission directory and is named from the job
 name, for example:
 
